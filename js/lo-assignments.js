@@ -128,7 +128,7 @@ export function renderLoAssignCards() {
       '<div class="acard-top">' +
         '<div class="acard-avatar">' + initials(r.name) + '</div>' +
         '<div style="flex:1;min-width:0">' +
-          '<div class="acard-name"><span class="clickable-num" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showAllLeadsForRealtor(\'' + encodeURIComponent(r.key) + '\',\'' + (r.name || r.key).replace(/'/g, "\\'") + '\')">' + (r.name || r.key) + '</span></div>' +
+          '<div class="acard-name"><span class="clickable-num" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showAllLeadsForRealtor(\'' + encodeURIComponent(r.key) + '\',\'' + (r.name || r.key).replace(/'/g, "\\'") + '\')" title="Ver todos los leads de este realtor">' + (r.name || r.key) + '</span></div>' +
           '<div class="acard-med"><span class="badge ' + (BADGE[r.med] || 'b-sin') + '" style="font-size:8px">' + r.med + '</span>' +
             (m.source === 'manual' ? '&nbsp;<span class="manual-assign-chip">&#9733; Manual</span>' : '') + '</div>' +
           '<div style="font-size:9px;color:#8899BB;margin-top:3px">&#128203; ' + (leadCountMap.get(r.key) || 0) + ' leads &middot; ' + (oppCountMap.get(r.key) || 0) + ' opps.</div>' +
@@ -225,7 +225,7 @@ export function renderLoUnassigned() {
   container.innerHTML = toolbar +
     '<div class="unassigned-wrap"><table class="unassigned-table">' +
     '<thead><tr><th>Realtor</th><th>Status</th><th>Last Lead</th><th>All-time Leads</th><th>LOs Seen</th><th>Assign LO</th><th>Branch</th><th></th></tr></thead>' +
-    '<tbody>' + (rows || '<tr><td colspan="8" style="text-align:center;padding:20px;color:#8899BB">No realtors match.</td></tr>') + '</tbody>' +
+    '<tbody>' + (rows || '<tr><td colspan="8" style="text-align:center;padding:20px;color:#8899BB;font-size:12px">No realtors match.</td></tr>') + '</tbody>' +
     '</table></div>';
   if (prevSearch) {
     const searchEl = document.getElementById('lo-ua-search');

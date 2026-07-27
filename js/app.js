@@ -63,16 +63,58 @@ bus.on('calc:complete', ({ windowDays, cutoff, floorDate, inactFloor, allowedOwn
 });
 
 bus.on('lo-calc:complete', ({ windowDays, cutoff, floorDate, inactFloor, allowedOwners }) => {
+  // Guarda los LOs efectivos (para fallback cuando el textarea lo-list está vacío / auto-discover)
+  state.loAllowedOwners = allowedOwners;
+
+  // Siempre renderiza lo esencial (Ratings)
   populateLoFilters(allowedOwners);
   renderLoSummary(windowDays, state.loActiveResults, state.loInactiveResults, cutoff, floorDate, inactFloor);
   setLoMode(state.loCurrentMode);
-  renderLoScorecard(allowedOwners);
-  renderLoAssignCards();
-  initLoPipeline();
-  initLoTrends();
-  initLoPerformance();
+
+  // Marca todas las pestañas (excepto Ratings) como pendientes de render
+  state.loPendingRender = new Set(['sc', 'pipeline', 'perf', 'trends', 'assign']);
+
+  // Renderiza solo la pestaña activa
+  renderLoActiveTab();
+
   document.getElementById('lo-results').classList.remove('hidden');
 });
+
+function getAllowedLoOwners() {
+  const el = document.getElementById('lo-list');
+  const fromInput = el
+    ? el.value.split(',').map(s => s.trim().replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== '')
+    : [];
+  return fromInput.length ? fromInput : (state.loAllowedOwners || []);
+}
+
+function renderLoActiveTab() {
+  const active = state.loCurrentTab || 'med';
+
+  if (active === 'sc' && state.loPendingRender?.has('sc')) {
+    renderLoScorecard(getAllowedLoOwners());
+    state.loPendingRender.delete('sc');
+  }
+  if (active === 'pipeline' && state.loPendingRender?.has('pipeline')) {
+    initLoPipeline();
+    state.loPendingRender.delete('pipeline');
+  }
+  if (active === 'perf' && state.loPendingRender?.has('perf')) {
+    initLoPerformance();
+    state.loPendingRender.delete('perf');
+  }
+  if (active === 'trends' && state.loPendingRender?.has('trends')) {
+    initLoTrends();
+    state.loPendingRender.delete('trends');
+  }
+  if (active === 'assign' && state.loPendingRender?.has('assign')) {
+    renderLoAssignCards();
+    state.loPendingRender.delete('assign');
+  }
+}
+
+// Disparado por showLoTab (lo-ui.js) al cambiar de pestaña LO
+bus.on('lo-tab:shown', renderLoActiveTab);
 
 function handleFile(e, type) {
   const file = e.target.files[0]; if (!file) return;
@@ -290,6 +332,14 @@ async function initApp() {
     document.getElementById('app-wrap').classList.add('sidebar-collapsed');
   }
 
+  // Restore calc params visibility
+  if (localStorage.getItem('calcParamsVisible') === '0') {
+    const extra = document.getElementById('calc-params-extra');
+    const btn = document.getElementById('calc-params-toggle');
+    if (extra) extra.classList.add('hidden');
+    if (btn) btn.textContent = 'Show Parameters';
+  }
+
   // Populate zoom year selector
   const zoomYearSel = document.getElementById('zoom-upload-year');
   if (zoomYearSel) {
@@ -343,63 +393,78 @@ async function initApp() {
       if (type === 'leads' || type === 'opp') hasData = true;
     }
 
-    const master = await sbFetch('master_assignments?select=*');
-    for (const m of (master || [])) {
-      if (m.source === 'manual') {
-        state.masterMap.set(m.realtor_key, { name: m.realtor_name, owner: m.owner, branch: m.branch, source: m.source, updatedAt: m.updated_at, confirmed: m.confirmed === true || m.confirmed === 'true' });
-      }
+    // GRUPO 1 — configuración y tablas independientes en paralelo
+    setStatus('load', '⏳ Loading configuration...');
+    try {
+      await Promise.all([
+        (async () => {
+          const master = await sbFetch('master_assignments?select=*');
+          for (const m of (master || [])) {
+            if (m.source === 'manual') {
+              state.masterMap.set(m.realtor_key, { name: m.realtor_name, owner: m.owner, branch: m.branch, source: m.source, updatedAt: m.updated_at, confirmed: m.confirmed === true || m.confirmed === 'true' });
+            }
+          }
+        })().catch(e => console.warn('[initApp] master_assignments:', e.message)),
+        (async () => {
+          const logs = await sbFetch('change_log?select=*&order=created_at.desc&limit=200');
+          state.changeLog = (logs || []).map(l => ({ date: l.change_date, realtor: l.realtor, from: l.from_assignment, to: l.to_assignment }));
+        })().catch(e => console.warn('[initApp] change_log:', e.message)),
+        (async () => {
+          const PAGE = 1000;
+          let offset = 0;
+          state.realtorOwnerMap = new Map();
+          while (true) {
+            const rows = await sbFetch('realtor_owner_map?select=*&limit=' + PAGE + '&offset=' + offset);
+            if (!rows || !rows.length) break;
+            for (const r of rows) {
+              if (r.realtor_key && r.owner) state.realtorOwnerMap.set(r.realtor_key, { owner: r.owner, name: r.realtor_name, branch: r.branch, loan_officers: r.loan_officers, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date });
+            }
+            if (rows.length < PAGE) break;
+            offset += PAGE;
+          }
+        })().catch(e => console.warn('[initApp] realtor_owner_map:', e.message)),
+        loadLoReferenceMap(),
+        loadLoMasterMap(),
+        loadKpiSettings().catch(e => console.warn('[initApp] kpi:', e.message)),
+        loadCallsData().catch(e => console.warn('[initApp] calls:', e.message)),
+        loadMeetingReviews().catch(e => console.warn('[initApp] meetingReviews:', e.message)),
+        (async () => {
+          const PAGE = 1000;
+          let offset = 0;
+          state.zoomParticipantLabels = new Map();
+          while (true) {
+            const rows = await sbFetch('zoom_participant_labels?select=participant_key,label,canonical_name&limit=' + PAGE + '&offset=' + offset);
+            if (!rows || !rows.length) break;
+            for (const r of rows) {
+              if (r.participant_key) state.zoomParticipantLabels.set(r.participant_key, { label: r.label, canonical_name: r.canonical_name || null });
+            }
+            if (rows.length < PAGE) break;
+            offset += PAGE;
+          }
+        })().catch(e => console.warn('[initApp] zoom_participant_labels:', e.message))
+      ]);
+    } catch (e) {
+      console.warn('[initApp] config group failed:', e.message);
     }
 
-    const logs = await sbFetch('change_log?select=*&order=created_at.desc&limit=200');
-    state.changeLog = (logs || []).map(l => ({ date: l.change_date, realtor: l.realtor, from: l.from_assignment, to: l.to_assignment }));
-
+    // GRUPO 2 — datos pesados en paralelo entre sí
+    setStatus('load', '⏳ Loading data...');
     try {
-      const PAGE = 1000;
-      let offset = 0;
-      state.realtorOwnerMap = new Map();
-      while (true) {
-        const rows = await sbFetch('realtor_owner_map?select=realtor_key,owner&limit=' + PAGE + '&offset=' + offset);
-        if (!rows || !rows.length) break;
-        for (const r of rows) {
-          if (r.realtor_key && r.owner) state.realtorOwnerMap.set(r.realtor_key, r.owner);
-        }
-        if (rows.length < PAGE) break;
-        offset += PAGE;
-      }
-    } catch (_) {}
-
-    await loadLoReferenceMap();
-    await loadLoMasterMap();
-    await loadKpiSettings();
-    try { await loadCallsData(); } catch (_) {}
-    _zoomLoading = true;
-    loadZoomData()
-      .then(() => { _zoomLoading = false; _refreshMeetingsIfOpen(); })
-      .catch(() => { _zoomLoading = false; _refreshMeetingsIfOpen(); });
-    try { await loadMeetingReviews(); } catch (_) {}
-    try {
-      const PAGE = 1000;
-      let offset = 0;
-      state.zoomParticipantLabels = new Map();
-      while (true) {
-        const rows = await sbFetch('zoom_participant_labels?select=participant_key,label,canonical_name&limit=' + PAGE + '&offset=' + offset);
-        if (!rows || !rows.length) break;
-        for (const r of rows) {
-          if (r.participant_key) state.zoomParticipantLabels.set(r.participant_key, { label: r.label, canonical_name: r.canonical_name || null });
-        }
-        if (rows.length < PAGE) break;
-        offset += PAGE;
-      }
-    } catch (_) {}
-
-    try {
-      if (!state.leadsData || !state.leadsData.length) {
-        const { leadsData, oppData } = await loadDataFromSupabase();
-        state.leadsData = leadsData;
-        state.oppData = oppData;
+      _zoomLoading = true;
+      const zoomPromise = loadZoomData()
+        .then(() => { _zoomLoading = false; _refreshMeetingsIfOpen(); })
+        .catch(() => { _zoomLoading = false; _refreshMeetingsIfOpen(); });
+      const needLeads = !state.leadsData || !state.leadsData.length;
+      const [dataRes] = await Promise.all([
+        needLeads ? loadDataFromSupabase() : Promise.resolve(null),
+        zoomPromise
+      ]);
+      if (dataRes) {
+        state.leadsData = dataRes.leadsData;
+        state.oppData = dataRes.oppData;
       }
     } catch (e) {
-      console.warn('[initApp] leadsData preload failed:', e.message);
+      console.warn('[initApp] data group failed:', e.message);
     }
 
     if (hasData) {
@@ -413,9 +478,19 @@ async function initApp() {
   }
 }
 
+function toggleCalcParams() {
+  const extra = document.getElementById('calc-params-extra');
+  const btn = document.getElementById('calc-params-toggle');
+  if (!extra) return;
+  const nowHidden = extra.classList.toggle('hidden');
+  if (btn) btn.textContent = nowHidden ? 'Show Parameters' : 'Hide Parameters';
+  localStorage.setItem('calcParamsVisible', nowHidden ? '0' : '1');
+}
+
 // Expose functions needed by inline HTML onclick handlers
 Object.assign(window, {
   runCalc, openSettings, closeSettings, onModeSelect, renderTable, showTab, srt,
+  toggleCalcParams,
   clearScorecardFilters, refreshScorecard, renderRankings,
   renderAssignCards, saveAllAssignments, clearAssignFilters, confirmAssign, unconfirm, updateAssign,
   showAssignView, renderUnassigned, saveUnassigned, loadSfReference, applyUaSuggestion,

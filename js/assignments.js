@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { norm, fmtDate, parseDate, getField, fmtNow, initials } from './utils.js';
+import { norm, fmtDate, fmtDB, parseDate, getField, fmtNow, initials } from './utils.js';
 import { BADGE } from './config.js';
 import { sbFetch } from './supabase.js';
 import { renderSummary } from './ui.js';
@@ -24,10 +24,18 @@ export function loadSfReference(inputEl) {
         const owner = getField(row, 'Opportunity Owner', 'opportunity owner', 'Opp Owner', 'opp owner', 'Owner', 'owner', 'BD', 'bd');
         if (name && owner) {
           const key = norm(String(name));
-          dedupMap.set(key, { realtor_key: key, realtor_name: String(name).trim(), owner: String(owner).trim() });
+          dedupMap.set(key, {
+            realtor_key: key, realtor_name: String(name).trim(), owner: String(owner).trim(),
+            meeting_attended_date: fmtDB(parseDate(getField(row, 'Meeting Attended Date', 'meeting attended date'))) || null,
+            invite_sent_date: fmtDB(parseDate(getField(row, 'Invite Sent Date', 'invite sent date'))) || null,
+            nppm: getField(row, 'NPPM', 'nppm') === true || String(getField(row, 'NPPM', 'nppm')).toLowerCase() === 'true',
+            last_referral_date: fmtDB(parseDate(getField(row, 'Realtor Last Referral Date', 'realtor last referral date'))) || null,
+            branch: String(getField(row, 'Branch', 'branch') || '').trim() || null,
+            loan_officers: String(getField(row, 'Loan Officers', 'loan officers', 'Loan Officer', 'loan officer') || '').trim() || null
+          });
         }
       }
-      state.realtorOwnerMap = new Map([...dedupMap.entries()].map(([k, r]) => [k, r.owner]));
+      state.realtorOwnerMap = new Map([...dedupMap.entries()].map(([k, r]) => [k, { owner: r.owner, name: r.realtor_name, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date }]));
       const dbRows = [...dedupMap.values()];
       // Refresh table immediately so SF Suggestion column appears right away
       renderUnassigned();
@@ -315,7 +323,8 @@ export function renderUnassigned() {
 
     let sfCell = '';
     if (sfColVisible) {
-      const suggestion = state.realtorOwnerMap.get(norm(r.name));
+      const _sug = state.realtorOwnerMap.get(norm(r.name));
+      const suggestion = (_sug && typeof _sug === 'object') ? _sug.owner : _sug;
       if (!suggestion) {
         sfCell = '<td style="color:#AAB4CC;font-size:11px;text-align:center">—</td>';
       } else if (owners.includes(suggestion)) {

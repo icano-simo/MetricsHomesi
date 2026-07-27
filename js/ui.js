@@ -113,10 +113,6 @@ export function renderTable() {
       '<th style="min-width:110px" onclick="srt(String.fromCharCode(99,111,110,118,101,114,116,101,100,67,111,117,110,116))" title="Leads marked as Converted within the selected window">Converted to Opp. &#8597;</th>',
       '<th style="min-width:80px" onclick="srt(String.fromCharCode(102,105,114,115,116,68,97,116,101))">1st Lead &#8597;</th>',
       '<th style="min-width:90px" onclick="srt(String.fromCharCode(112,101,110,117,108,116))" title="Date of the second most recent lead shared by this realtor — helps identify reactivation patterns">Prior Lead Date &#8597;</th>',
-      '<th style="min-width:60px;text-align:center" title="C1: Has at least 1 lead in the active window">Active C1</th>',
-      '<th style="min-width:60px;text-align:center" title="C2: First lead fell within the window — new to the team">New C2</th>',
-      '<th style="min-width:60px;text-align:center" title="C3: Has history prior to window — known realtor">Old C3</th>',
-      '<th style="min-width:65px;text-align:center" title="C4: 2nd to last lead exceeded reactivation threshold — reactivating">React. C4</th>',
       '<th style="min-width:110px" onclick="srt(String.fromCharCode(112,97))" title="Leads that reached Pre-Approval in window (used in rating)">Leads w/ Pre-Appr &#8597;</th>',
       '<th style="min-width:110px" onclick="srt(String.fromCharCode(114,97,116))" title="Leads that reached Ratified in window (used in rating)">Leads w/ Ratified &#8597;</th>',
       '<th style="min-width:120px" onclick="srt(String.fromCharCode(99,119))" title="Leads closed (Closed Won) in window (used in rating)">Leads Closed Won &#8597;</th>',
@@ -131,10 +127,6 @@ export function renderTable() {
       '<th style="' + tE + '"></th>',
       '<th style="' + tS + '">' + totCnt + '</th>',
       '<th style="' + tS + '">' + totConverted + '</th>',
-      '<th style="' + tE + '"></th>',
-      '<th style="' + tE + '"></th>',
-      '<th style="' + tE + '"></th>',
-      '<th style="' + tE + '"></th>',
       '<th style="' + tE + '"></th>',
       '<th style="' + tE + '"></th>',
       '<th style="' + tS + '">' + totPa + '</th>',
@@ -161,10 +153,6 @@ export function renderTable() {
         '<td style="text-align:center;font-weight:700">' + (r.convertedCount ? '<span class="clickable-num" data-rkey="' + k + '" data-dtype="converted" title="View converted leads">' + r.convertedCount + '</span>' : '&#8211;') + '</td>',
         '<td class="dt">' + fmtDate(r.firstDate) + '</td>',
         '<td class="dt">' + fmtDate(r.penult) + '</td>',
-        '<td style="text-align:center">' + (r.c1 ? yy : nn) + '</td>',
-        '<td style="text-align:center">' + (r.c2 ? yy : nn) + '</td>',
-        '<td style="text-align:center">' + (r.c3 ? yy : nn) + '</td>',
-        '<td style="text-align:center">' + (r.c4 ? yy : nn) + '</td>',
         '<td style="text-align:center;color:' + (r.pa ? '#185FA5' : '#CCD5E0') + '">' + (r.pa ? '<span class="clickable-num" data-rkey="' + k + '" data-dtype="pa" style="color:#185FA5" title="View Pre-Approval detail">' + r.pa + '</span>' : '&#8211;') + '</td>',
         '<td style="text-align:center;color:' + (r.rat ? '#3C3489' : '#CCD5E0') + '">' + (r.rat ? '<span class="clickable-num" data-rkey="' + k + '" data-dtype="rat" style="color:#3C3489" title="View Ratified detail">' + r.rat + '</span>' : '&#8211;') + '</td>',
         '<td style="text-align:center;color:' + (r.cw ? '#085041' : '#CCD5E0') + ';font-weight:' + (r.cw ? '700' : '400') + '">' + (r.cw ? '<span class="clickable-num" data-rkey="' + k + '" data-dtype="cw" style="color:#085041" title="View Closed Won detail">' + r.cw + '</span>' : '&#8211;') + '</td>',
@@ -217,7 +205,7 @@ export function srt(col) {
 }
 
 export function showTab(t) {
-  const ts = ['med', 'sc', 'trends', 'perf', 'pipeline', 'assign'];
+  const ts = ['med', 'sc', 'pipeline', 'perf', 'trends', 'assign'];
   document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('active', ts[i] === t));
   ts.forEach(id => document.getElementById('tab-' + id).classList.toggle('hidden', id !== t));
 }

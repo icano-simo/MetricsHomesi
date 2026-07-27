@@ -21,15 +21,6 @@
         <i class="ti ti-menu-2"></i>
       </button>
     </div>
-    <div class="sidebar-brand">
-      <div class="sidebar-brand-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-          <path d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" />
-        </svg>
-      </div>
-      <span class="sidebar-brand-text">HOME<span>SÍ</span></span>
-    </div>
-
     <div class="sidebar-nav">
       <button class="sidebar-item" id="nav-upload" data-view="data-upload" onclick="showView('data-upload')">
         <i class="ti ti-upload"></i>
@@ -61,8 +52,9 @@
 
     <div class="topbar">
       <div class="logo-mark">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-          <path d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" />
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4.3 20.2 V10.5 L12 3.8 L19.7 10.5 V20.2 Z" />
+          <path d="M9.9 20.2 V15 L12 12.9 L14.1 15 V20.2" />
         </svg>
       </div>
       <span class="logo-text">HOME<span>SÍ</span></span>
@@ -81,55 +73,44 @@
       <!-- ══ VIEW: BD METRICS ══ -->
       <div id="view-bd-metrics">
 
-        <div class="card">
-          <div class="card-header">
-            <i class="ti ti-adjustments-horizontal" style="color:var(--hs-red);font-size:17px"></i>
-            <span class="card-title">Calculation Parameters</span>
-          </div>
-          <div class="cfg-grid">
-            <div class="cfg-group">
-              <label class="lbl">Cutoff Date</label>
+        <div class="calc-unified">
+          <div class="calc-unified-inputs">
+            <label>Cutoff Date
               <input type="date" id="cutoff-date">
-            </div>
-            <div class="cfg-group">
-              <label class="lbl">Search</label>
+            </label>
+            <label>Search
               <select id="mode-selector" onchange="onModeSelect(this.value)" style="font-weight:600">
                 <option value="active">✅ Active realtors</option>
                 <option value="inactive">⏸ Inactive realtors</option>
               </select>
-              <div class="hint">Select which group to analyze</div>
-            </div>
-            <div class="cfg-group active-g" id="cfg-active-window">
-              <label class="lbl">✅ Active Window (days)</label>
+            </label>
+            <label class="active-g" id="cfg-active-window">Active Window (days)
               <input type="number" id="window-days" value="60" min="1">
-              <div class="hint">Active = leads in the last N days from cutoff</div>
-            </div>
-            <div class="cfg-group inactive-g" id="cfg-inactive-from" style="opacity:.4;pointer-events:none">
-              <label class="lbl">⏸ Inactive: search from</label>
+            </label>
+            <label class="inactive-g" id="cfg-inactive-from" style="opacity:.4;pointer-events:none">Inactive: search from
               <input type="date" id="inactive-from">
-              <div class="hint">Only inactive realtors with at least 1 lead since this date</div>
-            </div>
-            <div class="cfg-group inactive-g" id="cfg-react-days">
-              <label class="lbl">⏸ Reactivation threshold C4 (days)</label>
+            </label>
+            <label class="inactive-g" id="cfg-react-days">Reactivation C4 (days)
               <input type="number" id="react-days" value="150" min="1">
-              <div class="hint">2nd to last lead before cutoff - N days</div>
-            </div>
+            </label>
+          </div>
+          <div class="calc-unified-actions">
+            <button id="run-btn" onclick="runCalc()" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+              Calculate Metrics
+            </button>
           </div>
         </div>
-
-        <button class="run-btn" id="run-btn" onclick="runCalc()" disabled>
-          <i class="ti ti-player-play"></i> Calculate Metrics
-        </button>
 
         <div id="results" class="hidden">
           <div class="mcards" id="summary-cards"></div>
 
           <div class="tabs">
             <button class="tab active" onclick="showTab('med')"><i class="ti ti-chart-bar"></i> Ratings</button>
-            <button class="tab" onclick="showTab('sc')"><i class="ti ti-trophy"></i> Scorecard</button>
-            <button class="tab" onclick="showTab('trends')"><i class="ti ti-chart-line"></i> Trends</button>
+            <button class="tab" onclick="showTab('sc')"><i class="ti ti-trophy"></i> Scorecard B2B</button>
+            <button class="tab" onclick="showTab('pipeline')"><i class="ti ti-git-branch"></i> Pipeline B2C</button>
             <button class="tab" onclick="showTab('perf')"><i class="ti ti-chart-arrows-vertical"></i> Performance</button>
-            <button class="tab" onclick="showTab('pipeline')"><i class="ti ti-git-branch"></i> Pipeline</button>
+            <button class="tab" onclick="showTab('trends')"><i class="ti ti-chart-line"></i> Trends</button>
             <button class="tab" onclick="showTab('assign')"><i class="ti ti-checkbox"></i> Realtors <span class="tab-badge" id="pending-badge">0</span></button>
           </div>
 
@@ -198,18 +179,30 @@
                 <button class="btn-sm" onclick="exportMasterCSV()"><i class="ti ti-download"></i> CSV</button>
                 <span id="assign-save-status" class="save-status"></span>
               </div>
-              <div class="filters">
-                <select id="assign-filter-owner" multiple size="3" onchange="renderAssignCards()"></select>
-                <select id="assign-filter-branch" multiple size="3" onchange="renderAssignCards()"></select>
-                <select id="assign-filter-med" multiple size="3" onchange="renderAssignCards()"></select>
-                <select id="assign-filter-status" onchange="renderAssignCards()">
-                  <option value="">All</option>
-                  <option value="active">Active Only</option>
-                  <option value="inactive">Inactive Only</option>
-                  <option value="confirmed">Confirmed Only</option>
-                  <option value="pending">Pending Only</option>
-                  <option value="unassigned">No Owner</option>
-                </select>
+              <div class="filter-bar-unified">
+                <div class="filter-group">
+                  <label class="filter-group-label">Owner</label>
+                  <select id="assign-filter-owner" multiple size="3" onchange="renderAssignCards()"></select>
+                </div>
+                <div class="filter-group">
+                  <label class="filter-group-label">Branch</label>
+                  <select id="assign-filter-branch" multiple size="3" onchange="renderAssignCards()"></select>
+                </div>
+                <div class="filter-group">
+                  <label class="filter-group-label">Rating</label>
+                  <select id="assign-filter-med" multiple size="3" onchange="renderAssignCards()"></select>
+                </div>
+                <div class="filter-group">
+                  <label class="filter-group-label">Status</label>
+                  <select id="assign-filter-status" onchange="renderAssignCards()">
+                    <option value="">All</option>
+                    <option value="active">Active Only</option>
+                    <option value="inactive">Inactive Only</option>
+                    <option value="confirmed">Confirmed Only</option>
+                    <option value="pending">Pending Only</option>
+                    <option value="unassigned">No Owner</option>
+                  </select>
+                </div>
                 <button class="btn-sm" id="btn-clear-assign-filters" onclick="clearAssignFilters()"><i class="ti ti-rotate"></i> Clear Filters</button>
               </div>
               <div class="filter-hint">Ctrl+click to select multiple &middot; click selected to deselect</div>
@@ -223,29 +216,33 @@
 
           <!-- PERFORMANCE -->
           <div id="tab-perf" class="hidden">
-            <div class="perf-filters-wrap">
+            <div class="perf-filter-bar">
               <div class="perf-filter-group">
-                <label class="lbl">Business Developer</label>
-                <select id="perf-owner" onchange="renderPerformance()">
+                <label class="perf-filter-label">Business Developer</label>
+                <select id="perf-owner" size="4" onchange="renderPerformance()">
                   <option value="">&#8212; Select BD &#8212;</option>
                 </select>
               </div>
+              <div class="perf-filter-divider"></div>
               <div class="perf-filter-group">
-                <label class="lbl">Period</label>
-                <div class="perf-period-row">
+                <label class="perf-filter-label">Period</label>
+                <div class="perf-filter-row">
                   <select id="perf-year" onchange="renderPerformance()" class="perf-year-sel"></select>
                   <select id="perf-months" multiple size="5" onchange="renderPerformance()"></select>
                 </div>
               </div>
+              <div class="perf-filter-divider"></div>
               <div class="perf-filter-group">
-                <label class="lbl">Compare to</label>
-                <div class="perf-period-row">
+                <label class="perf-filter-label">Compare To</label>
+                <div class="perf-filter-row">
                   <select id="perf-cmp-year" onchange="renderPerformance()" class="perf-year-sel"></select>
                   <select id="perf-cmp-months" multiple size="5" onchange="renderPerformance()"></select>
                 </div>
               </div>
+              <div class="perf-filter-hint">
+                <span class="perf-hint-icon" title="Select multiple months with Ctrl+click to analyze a full quarter. Comparison cuts at the same week-of-month for fair analysis.">&#8505;</span>
+              </div>
             </div>
-            <div class="filter-hint">Ctrl+click to select multiple months &middot; comparison cuts at same week-of-month as today for fair comparison</div>
             <div id="perf-content" style="margin-top:18px"></div>
           </div>
 
@@ -255,13 +252,13 @@
               <i class="ti ti-git-branch" style="font-size:16px;color:var(--hs-red)"></i>
               <span class="pl-section-title">Open Pipeline</span>
             </div>
-            <div class="filters" style="margin-bottom:12px;align-items:flex-end">
-              <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:130px">
-                <label class="lbl">Filter by Owner</label>
+            <div class="filter-bar-unified">
+              <div class="filter-group" style="flex:1;min-width:130px">
+                <label class="filter-group-label">Filter by Owner</label>
                 <select id="pl-filter-owner" multiple size="4" onchange="renderPipeline()"></select>
               </div>
-              <div style="display:flex;flex-direction:column;gap:4px;min-width:170px">
-                <label class="lbl">Active if lead since</label>
+              <div class="filter-group" style="min-width:170px">
+                <label class="filter-group-label">Active if lead since</label>
                 <input type="date" id="pl-inactive-cutoff" onchange="renderPipeline()">
                 <div class="hint">Realtor is active if they shared a lead on or after this date</div>
               </div>
@@ -274,22 +271,20 @@
               <i class="ti ti-circle-check" style="font-size:16px;color:#085041"></i>
               <span class="pl-section-title">Closed Won</span>
             </div>
-            <div class="filters" style="margin-bottom:12px;align-items:flex-end">
-              <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:100px">
-                <label class="lbl">Year</label>
+            <div class="filter-bar-unified">
+              <div class="filter-group" style="flex:1;min-width:100px">
+                <label class="filter-group-label">Year</label>
                 <select id="pl-cw-year" multiple size="3" onchange="renderClosedWon()"></select>
               </div>
-              <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:100px">
-                <label class="lbl">Month</label>
+              <div class="filter-group" style="flex:1;min-width:100px">
+                <label class="filter-group-label">Month</label>
                 <select id="pl-cw-month" multiple size="3" onchange="renderClosedWon()"></select>
               </div>
-              <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px">
-                <label class="lbl">Branch</label>
+              <div class="filter-group" style="flex:1;min-width:120px">
+                <label class="filter-group-label">Branch</label>
                 <select id="pl-filter-cw-branch" multiple size="3" onchange="renderClosedWon()"></select>
               </div>
-              <div style="display:flex;align-items:flex-end;padding-bottom:2px">
-                <button class="btn-sm" onclick="clearClosedWonFilters()"><i class="ti ti-x"></i> Clear Filters</button>
-              </div>
+              <button class="btn-sm" onclick="clearClosedWonFilters()"><i class="ti ti-x"></i> Clear Filters</button>
             </div>
             <div class="filter-hint">Ctrl+click to select multiple</div>
             <div id="pl-cw-content" style="margin-top:14px"></div>
@@ -433,60 +428,46 @@
       <!-- ══ VIEW: LO METRICS ══ -->
       <div id="view-lo-metrics" class="hidden">
 
-        <div class="card">
-          <div class="card-header">
-            <i class="ti ti-adjustments-horizontal" style="color:var(--hs-red);font-size:17px"></i>
-            <span class="card-title">LO Calculation Parameters</span>
-          </div>
-          <div class="cfg-grid">
-            <div class="cfg-group">
-              <label class="lbl">Cutoff Date</label>
+        <div class="calc-unified">
+          <div class="calc-unified-inputs">
+            <label>Cutoff Date
               <input type="date" id="lo-cutoff-date">
-            </div>
-            <div class="cfg-group">
-              <label class="lbl">Search</label>
+            </label>
+            <label>Search
               <select id="lo-mode-selector" onchange="onLoModeSelect(this.value)" style="font-weight:600">
                 <option value="active">✅ Active realtors</option>
                 <option value="inactive">⏸ Inactive realtors</option>
               </select>
-              <div class="hint">Select which group to analyze</div>
-            </div>
-            <div class="cfg-group active-g" id="lo-cfg-active-window">
-              <label class="lbl">✅ Active Window (days)</label>
+            </label>
+            <label class="active-g" id="lo-cfg-active-window">Active Window (days)
               <input type="number" id="lo-window-days" value="60" min="1">
-              <div class="hint">Active = leads in the last N days from cutoff</div>
-            </div>
-            <div class="cfg-group inactive-g" id="lo-cfg-inactive-from" style="opacity:.4;pointer-events:none">
-              <label class="lbl">⏸ Inactive: search from</label>
+            </label>
+            <label class="inactive-g" id="lo-cfg-inactive-from" style="opacity:.4;pointer-events:none">Inactive: search from
               <input type="date" id="lo-inactive-from">
-              <div class="hint">Only inactive realtors with at least 1 lead since this date</div>
-            </div>
-            <div class="cfg-group inactive-g" id="lo-cfg-react-days">
-              <label class="lbl">⏸ Reactivation threshold C4 (days)</label>
+            </label>
+            <label class="inactive-g" id="lo-cfg-react-days">Reactivation C4 (days)
               <input type="number" id="lo-react-days" value="150" min="1">
-              <div class="hint">2nd to last lead before cutoff - N days</div>
-            </div>
+            </label>
           </div>
-          <div class="cfg-group" style="margin-top:12px">
-            <label class="lbl">Loan Officers (comma-separated)</label>
-            <textarea id="lo-list" rows="3" style="width:100%;font-size:12px;padding:8px;border:1px solid #D0D5E2;border-radius:6px;resize:vertical;font-family:inherit" oninput="syncLoList('lo')">Ana Milena Zegarra, Gissel Stephanie Garcia, Giancarlo Laino, Aimmee Buendia, Nathan Martinez, Rafael Jubiz, Erick Rivera, Carmen Membreno, Juseth Castro, Mariano Claudio</textarea>
-            <div class="hint">Leave empty to auto-discover all LOs from data</div>
+          <div class="calc-unified-actions">
+            <button id="lo-run-btn" onclick="runLoCalc()">
+              <i class="ti ti-player-play"></i> Calculate LO Metrics
+            </button>
           </div>
         </div>
 
-        <button class="run-btn" id="lo-run-btn" onclick="runLoCalc()">
-          <i class="ti ti-player-play"></i> Calculate LO Metrics
-        </button>
+        <!-- lo-list oculto: la lógica LO lo lee por id; el campo editable vive en Settings (lo-list-settings) -->
+        <textarea id="lo-list" style="display:none" oninput="syncLoList('lo')">Ana Milena Zegarra, Gissel Stephanie Garcia, Giancarlo Laino, Aimmee Buendia, Nathan Martinez, Rafael Jubiz, Erick Rivera, Carmen Membreno, Juseth Castro, Mariano Claudio</textarea>
 
         <div id="lo-results" class="hidden">
           <div class="mcards" id="lo-summary-cards"></div>
 
           <div class="tabs">
             <button class="lo-tab active" onclick="showLoTab('med')"><i class="ti ti-chart-bar"></i> Ratings</button>
-            <button class="lo-tab" onclick="showLoTab('sc')"><i class="ti ti-trophy"></i> Scorecard</button>
-            <button class="lo-tab" onclick="showLoTab('trends')"><i class="ti ti-chart-line"></i> Trends</button>
+            <button class="lo-tab" onclick="showLoTab('sc')"><i class="ti ti-trophy"></i> Scorecard B2B</button>
+            <button class="lo-tab" onclick="showLoTab('pipeline')"><i class="ti ti-git-branch"></i> Pipeline B2C</button>
             <button class="lo-tab" onclick="showLoTab('perf')"><i class="ti ti-chart-arrows-vertical"></i> Performance</button>
-            <button class="lo-tab" onclick="showLoTab('pipeline')"><i class="ti ti-git-branch"></i> Pipeline</button>
+            <button class="lo-tab" onclick="showLoTab('trends')"><i class="ti ti-chart-line"></i> Trends</button>
             <button class="lo-tab" onclick="showLoTab('assign')"><i class="ti ti-checkbox"></i> Realtors <span class="tab-badge" id="lo-pending-badge">0</span></button>
           </div>
 
@@ -662,18 +643,30 @@
                 <button class="btn-sm btn-primary" onclick="saveAllLoAssignments()"><i class="ti ti-device-floppy"></i> Save All</button>
                 <span id="lo-assign-save-status" class="save-status"></span>
               </div>
-              <div class="filters">
-                <select id="lo-assign-filter-owner" multiple size="3" onchange="renderLoAssignCards()"></select>
-                <select id="lo-assign-filter-branch" multiple size="3" onchange="renderLoAssignCards()"></select>
-                <select id="lo-assign-filter-med" multiple size="3" onchange="renderLoAssignCards()"></select>
-                <select id="lo-assign-filter-status" onchange="renderLoAssignCards()">
-                  <option value="">All</option>
-                  <option value="active">Active Only</option>
-                  <option value="inactive">Inactive Only</option>
-                  <option value="confirmed">Confirmed Only</option>
-                  <option value="pending">Pending Only</option>
-                  <option value="unassigned">No LO</option>
-                </select>
+              <div class="filter-bar-unified">
+                <div class="filter-group">
+                  <label class="filter-group-label">Loan Officer</label>
+                  <select id="lo-assign-filter-owner" multiple size="3" onchange="renderLoAssignCards()"></select>
+                </div>
+                <div class="filter-group">
+                  <label class="filter-group-label">Branch</label>
+                  <select id="lo-assign-filter-branch" multiple size="3" onchange="renderLoAssignCards()"></select>
+                </div>
+                <div class="filter-group">
+                  <label class="filter-group-label">Rating</label>
+                  <select id="lo-assign-filter-med" multiple size="3" onchange="renderLoAssignCards()"></select>
+                </div>
+                <div class="filter-group">
+                  <label class="filter-group-label">Status</label>
+                  <select id="lo-assign-filter-status" onchange="renderLoAssignCards()">
+                    <option value="">All</option>
+                    <option value="active">Active Only</option>
+                    <option value="inactive">Inactive Only</option>
+                    <option value="confirmed">Confirmed Only</option>
+                    <option value="pending">Pending Only</option>
+                    <option value="unassigned">No LO</option>
+                  </select>
+                </div>
                 <button class="btn-sm" onclick="clearLoAssignFilters()"><i class="ti ti-rotate"></i> Clear Filters</button>
               </div>
               <div class="filter-hint">Ctrl+click to select multiple &middot; click selected to deselect</div>
@@ -696,14 +689,23 @@
             <h2>Meetings Review</h2>
           </div>
           <div class="card-body">
-            <div class="mr-filters">
-              <select id="mr-year" onchange="renderMeetingsReview()"></select>
-              <select id="mr-month" onchange="renderMeetingsReview()">
-                <option value="">All Months</option>
-              </select>
-              <select id="mr-host" onchange="renderMeetingsReview()">
-                <option value="">All Hosts</option>
-              </select>
+            <div class="filter-bar-unified">
+              <div class="filter-group">
+                <label class="filter-group-label">Year</label>
+                <select id="mr-year" onchange="renderMeetingsReview()"></select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-group-label">Month</label>
+                <select id="mr-month" onchange="renderMeetingsReview()">
+                  <option value="">All Months</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-group-label">Host</label>
+                <select id="mr-host" onchange="renderMeetingsReview()">
+                  <option value="">All Hosts</option>
+                </select>
+              </div>
               <button class="btn-sm" onclick="clearMrFilters()">Clear Filters</button>
             </div>
             <div id="mr-content"></div>

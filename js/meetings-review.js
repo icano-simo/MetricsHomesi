@@ -97,7 +97,8 @@ export function findRealtorMatch(participantName, hostName) {
   if (!realtorKey) return { level: 'none' };
 
   const canonicalName = _titleCase(realtorKey);
-  const owner = rom.get(realtorKey) || '';
+  const _romO = rom.get(realtorKey);
+  const owner = (_romO && typeof _romO === 'object' ? _romO.owner : _romO) || '';
 
   // PASO 3: count leads via realtorKey → norm(Referred By)
   const matchedLeads = leads.filter(row =>

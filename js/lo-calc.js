@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { bus } from './events.js';
-import { norm, parseDate, fmtNow, getField, normalizeLO } from './utils.js';
+import { norm, parseDate, fmtNow, normalizeLO } from './utils.js';
 import { loadDataFromSupabase } from './supabase.js';
 
 export async function runLoCalc() {
@@ -54,14 +54,32 @@ async function _runLoCalc() {
   const byRef = new Map();
   const leadRowsMap = new Map();
 
+  // Pre-index lead column names once (evita el Object.keys().find() de getField por fila)
+  const leadFirstRow = (state.leadsData && state.leadsData[0]) || {};
+  const refByField = Object.keys(leadFirstRow).find(k => norm(k) === 'referred by') || 'Referred By';
+  const createdField = Object.keys(leadFirstRow).find(k => norm(k) === 'created date' || norm(k) === 'create date') || 'Created Date';
+  const loField = Object.keys(leadFirstRow).find(k => norm(k) === 'loan officer') || 'Loan Officer';
+  const branchField = Object.keys(leadFirstRow).find(k => norm(k) === 'branch') || 'Branch';
+  const convertedField = Object.keys(leadFirstRow).find(k => norm(k) === 'converted') || 'Converted';
+
+  // Cache de normalizeLO: pocos LOs únicos pero decenas de miles de filas
+  const loNormCache = new Map();
+  const getNormLO = (raw) => {
+    if (!raw) return '';
+    if (loNormCache.has(raw)) return loNormCache.get(raw);
+    const result = normalizeLO(raw);
+    loNormCache.set(raw, result);
+    return result;
+  };
+
   for (const row of (state.leadsData || [])) {
-    const ref = getField(row, 'Referred By', 'referred by');
+    const ref = row[refByField];
     if (!ref || !String(ref).trim()) continue;
     const key = norm(ref), name = String(ref).trim();
-    const cd = parseDate(getField(row, 'Created Date', 'Create Date', 'created date', 'create date'));
-    const loRaw = String(getField(row, 'Loan Officer', 'loan officer') || '').trim();
-    const loStr = loRaw ? normalizeLO(loRaw) : '';
-    const branchStr = String(getField(row, 'Branch', 'branch') || '').trim();
+    const cd = parseDate(row[createdField]);
+    const loRaw = String(row[loField] || '').trim();
+    const loStr = loRaw ? getNormLO(loRaw) : '';
+    const branchStr = String(row[branchField] || '').trim();
 
     if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], los: new Map(), allLos: new Map(), branches: new Map(), convertedCount: 0 });
     const rec = byRef.get(key);
@@ -70,7 +88,7 @@ async function _runLoCalc() {
       if (loStr) rec.allLos.set(loStr, (rec.allLos.get(loStr) || 0) + 1);
       if (cd >= floorDate && cd <= cutoff) {
         rec.recentDates.push(cd);
-        const conv = getField(row, 'Converted', 'converted');
+        const conv = row[convertedField];
         if (conv === true || String(conv).trim().toLowerCase() === 'true') rec.convertedCount++;
         if (loStr) rec.los.set(loStr, (rec.los.get(loStr) || 0) + 1);
         if (branchStr) rec.branches.set(branchStr, (rec.branches.get(branchStr) || 0) + 1);
@@ -99,17 +117,26 @@ async function _runLoCalc() {
   const curCwMap = new Map(), curRatMap = new Map(), curPaMap = new Map();
   const oppRowsMap = new Map();
 
+  // Pre-index opp column names once
+  const oppFirstRow = (state.oppData && state.oppData[0]) || {};
+  const oppRefField = Object.keys(oppFirstRow).find(k => norm(k) === 'referred by') || 'Referred By';
+  const oppLoField = Object.keys(oppFirstRow).find(k => norm(k) === 'loan officers' || norm(k) === 'loan officer') || 'Loan Officers';
+  const oppStageField = Object.keys(oppFirstRow).find(k => norm(k) === 'stage') || 'Stage';
+  const oppDisbField = Object.keys(oppFirstRow).find(k => norm(k) === 'disbursement date') || 'Disbursement Date';
+  const oppPaField = Object.keys(oppFirstRow).find(k => norm(k) === 'pre-approved date') || 'Pre-Approved Date';
+  const oppRatField = Object.keys(oppFirstRow).find(k => norm(k) === 'ratified date') || 'Ratified Date';
+
   for (const row of (state.oppData || [])) {
-    const ref = getField(row, 'Referred By', 'referred by');
+    const ref = row[oppRefField];
     if (!ref || !String(ref).trim()) continue;
     const key = norm(ref);
-    const loRaw = String(getField(row, 'Loan Officers', 'loan officers', 'Loan Officer', 'loan officer') || '').trim();
-    if (loRaw) oppLoMap.set(key, normalizeLO(loRaw));
+    const loRaw = String(row[oppLoField] || '').trim();
+    if (loRaw) oppLoMap.set(key, getNormLO(loRaw));
 
-    const stage = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
-    const disbDate = parseDate(getField(row, 'Disbursement Date', 'disbursement date'));
-    const paDate = parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date'));
-    const ratDate = parseDate(getField(row, 'Ratified Date', 'ratified date'));
+    const stage = String(row[oppStageField] || '').trim().toLowerCase();
+    const disbDate = parseDate(row[oppDisbField]);
+    const paDate = parseDate(row[oppPaField]);
+    const ratDate = parseDate(row[oppRatField]);
 
     if (!oppRowsMap.has(key)) oppRowsMap.set(key, []);
     oppRowsMap.get(key).push(row);

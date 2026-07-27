@@ -54,6 +54,7 @@ export async function uploadToSupabase(type, data, fileName, { onProgress = () =
       current_milestone: String(getField(row, 'Current Milestone', 'current milestone') || '').trim() || null,
       disbursement_date: fmtDB(parseDate(getField(row, 'Disbursement Date', 'disbursement date'))),
       pre_approved_date: fmtDB(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre approved date'))),
+      pre_qualified_date: fmtDB(parseDate(getField(row, 'Pre-Qualified Doc requested Date', 'pre-qualified doc requested date', 'pre_qualified_date'))) || null,
       ratified_date: fmtDB(parseDate(getField(row, 'Ratified Date', 'ratified date'))),
       est_closing_date: fmtDB(parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'Estimated Closing Date', 'estimated closing date', 'Close Date', 'close date'))),
       opportunity_owner: String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim() || null,
@@ -68,6 +69,7 @@ export async function uploadToSupabase(type, data, fileName, { onProgress = () =
       opportunity_team: String(getField(row, 'Opportunity Team', 'opportunity team') || '').trim() || null,
       lender: String(getField(row, 'Lender', 'lender') || '').trim() || null,
       strategy: String(getField(row, 'Strategy', 'strategy') || '').trim() || null,
+      healthiness: String(getField(row, 'Healthiness', 'healthiness') || '').trim() || null,
       created_date: fmtDB(parseDate(getField(row, 'Created Date', 'created date')))
     };
   }).filter(r => r.referred_by);
@@ -98,7 +100,8 @@ export async function uploadCalls(data, fileName, { onProgress = () => {}, onSta
   const rows = data.map(row => ({
     call_date: fmtDB(parseDate(getField(row, 'Date', 'date'))),
     assigned_to: String(getField(row, 'Assigned', 'assigned') || '').trim() || null,
-    effective: (() => { const v = getField(row, 'Effective Calls', 'effective calls'); return v === null || v === undefined ? null : parseFloat(v) || 0; })()
+    effective: (() => { const v = getField(row, 'Effective Calls', 'effective calls'); return v === null || v === undefined ? null : parseFloat(v) || 0; })(),
+    record_type: String(getField(row, 'RecordType related', 'recordtype related', 'RecordType Related', 'record_type') || '').trim() || null
   })).filter(r => r.call_date);
   const batchSize = 200;
   for (let i = 0; i < rows.length; i += batchSize) {
@@ -173,7 +176,7 @@ export async function loadCallsData() {
   const pageSize = 1000;
   let from = 0;
   while (true) {
-    const page = await sbFetch('calls?select=call_date,assigned_to,effective&limit=' + pageSize + '&offset=' + from + '&order=id.asc');
+    const page = await sbFetch('calls?select=*&limit=' + pageSize + '&offset=' + from + '&order=id.asc');
     if (!page || !page.length) break;
     all.push(...page);
     if (page.length < pageSize) break;
@@ -199,6 +202,49 @@ export async function loadZoomData() {
 export async function loadDataFromSupabase({ onStatus = () => {} } = {}) {
   onStatus('load', '⏳ Querying Supabase...');
   async function fetchAll(table) {
+    const pageSize = 1000;
+
+    // PASO 1 — Obtener el total de filas con una sola request
+    const countRes = await fetch(
+      SB_URL + '/rest/v1/' + table + '?select=*&limit=1',
+      {
+        headers: {
+          'apikey': SB_KEY,
+          'Authorization': 'Bearer ' + SB_KEY,
+          'Accept-Profile': 'b2b_metrics',
+          'Prefer': 'count=exact'
+        }
+      }
+    );
+
+    const contentRange = countRes.headers.get('content-range');
+    // content-range formato: "0-999/23456"
+    const total = contentRange ? parseInt(contentRange.split('/')[1]) : null;
+
+    // Si no se pudo obtener el total, cae al método secuencial original
+    if (!total || isNaN(total)) {
+      return fetchAllSequential(table);
+    }
+
+    // PASO 2 — Calcular todos los offsets
+    const offsets = [];
+    for (let i = 0; i < total; i += pageSize) {
+      offsets.push(i);
+    }
+
+    // PASO 3 — Disparar todas las páginas en paralelo
+    const pages = await Promise.all(
+      offsets.map(offset =>
+        sbFetch(table + '?select=*&limit=' + pageSize + '&offset=' + offset + '&order=id.asc')
+      )
+    );
+
+    // PASO 4 — Combinar resultados en orden
+    return pages.flat().filter(Boolean);
+  }
+
+  // Fallback secuencial (el original) renombrado
+  async function fetchAllSequential(table) {
     const all = [];
     const pageSize = 1000;
     let from = 0;
@@ -206,7 +252,6 @@ export async function loadDataFromSupabase({ onStatus = () => {} } = {}) {
       const page = await sbFetch(table + '?select=*&limit=' + pageSize + '&offset=' + from + '&order=id.asc');
       if (!page || !page.length) break;
       all.push(...page);
-      onStatus('load', '⏳ Loading ' + table + ': ' + all.length + ' rows...');
       if (page.length < pageSize) break;
       from += pageSize;
     }
@@ -230,6 +275,7 @@ export async function loadDataFromSupabase({ onStatus = () => {} } = {}) {
     'Loan Amount': r.loan_amount, 'Loan Status': r.loan_status, 'Loan Folder': r.loan_folder,
     'Branch': r.branch, 'Account Name': r.account_name,
     'Opportunity Team': r.opportunity_team, 'Lender': r.lender, 'Strategy': r.strategy,
+    'Pre-Qualified Doc requested Date': r.pre_qualified_date, 'Healthiness': r.healthiness,
     'Created Date': r.created_date
   }));
   return { leadsData, oppData };

@@ -4,6 +4,12 @@ export function parseDate(v) {
   if (!v) return null;
   if (typeof v === 'number') return new Date(Date.UTC(1899, 11, 30) + v * 86400000);
   const s = String(v).trim();
+  // Formato Salesforce: "M/D/YYYY, H:MM AM/PM"
+  if (typeof s === 'string' && s.includes(',')) {
+    const withoutComma = s.replace(',', '');
+    const d = new Date(withoutComma);
+    if (!isNaN(d.getTime())) return d;
+  }
   const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m1) return new Date(Date.UTC(+m1[3], +m1[1] - 1, +m1[2]));
   const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);

@@ -24,6 +24,13 @@ function statusChipHtml(status) {
   return '<span class="pl-status-chip pl-chip-unknown">No Data</span>';
 }
 
+function fmtCompactAmt(n) {
+  if (!n || isNaN(n)) return '$0';
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+  return '$' + Math.round(n).toLocaleString('en-US');
+}
+
 function buildRealtorCacheLo(realtorKeys, inactiveCutoff) {
   const keySet = new Set(realtorKeys);
   const latestDates = new Map();
@@ -114,7 +121,53 @@ export function renderLoPipeline() {
   }).filter(Boolean))];
   const realtorCache = buildRealtorCacheLo(allRealtorKeys, inactiveCutoff);
 
-  document.getElementById('lo-pl-pipeline-content').innerHTML = '<div class="pipeline-owners-grid">' + los.map(lo => {
+  // ── Tarjeta agregada "ALL LOs" (mismo patrón/estilo que "ALL BDs" de BD) ──
+  const allOppsLo = los.flatMap(lo => byLo.get(lo) || []);
+  const allStageMap = new Map();
+  for (const row of allOppsLo) {
+    const stage = String(getField(row, 'Stage', 'stage') || '—').trim();
+    if (!allStageMap.has(stage)) allStageMap.set(stage, []);
+    allStageMap.get(stage).push(row);
+  }
+  const allTotalAmt = allOppsLo.reduce((s, r) => { const a = parseFloat(getField(r, 'Loan Amount', 'loan amount') || 0); return s + (isNaN(a) ? 0 : a); }, 0);
+  const allRealtorKeys2 = [...new Set(allOppsLo.map(r => { const ref = getField(r, 'Referred By', 'referred by'); return ref ? norm(String(ref)) : null; }).filter(Boolean))];
+  let aAct = 0, aIn = 0, aUn = 0;
+  for (const key of allRealtorKeys2) {
+    const st = (realtorCache.get(key) || {}).status || 'unknown';
+    if (st === 'active') aAct++; else if (st === 'inactive') aIn++; else aUn++;
+  }
+  const allStageRank = { 'need analysis': 0, 'needs analysis': 0, 'qualification': 1, 'proposal': 2, 'negotiation': 3 };
+  const allStageRows = [...allStageMap.entries()]
+    .sort(([a], [b]) => { const n = s => s.toLowerCase().replace(/\s+/g, ' ').trim(); return (allStageRank[n(a)] ?? 999) - (allStageRank[n(b)] ?? 999); })
+    .map(([stage, rows]) => {
+      const stageAmt = rows.reduce((s, r) => { const a = parseFloat(getField(r, 'Loan Amount', 'loan amount') || 0); return s + (isNaN(a) ? 0 : a); }, 0);
+      const fmtAmt = stageAmt ? '$' + stageAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '';
+      return '<div class="pl-stage-item" data-lo-pl-lo="ALL" data-lo-pl-stage="' + stage.replace(/"/g, '&quot;') + '">' +
+        '<div class="pl-stage-info"><div class="pl-stage-title">' + stage + '</div>' +
+        (fmtAmt ? '<div class="pl-stage-amt2">' + fmtAmt + '</div>' : '') + '</div>' +
+        '<div class="pl-stage-num">' + rows.length + '</div></div>';
+    }).join('');
+  const allCard =
+    '<div class="pl-owner-card all-bds">' +
+      '<div class="pl-allbds-header">' +
+        '<div>' +
+          '<div class="pl-allbds-title">ALL LOs</div>' +
+          '<div class="pl-allbds-sub">' + los.length + ' Loan Officer' + (los.length !== 1 ? 's' : '') + '</div>' +
+        '</div>' +
+        '<div class="pl-allbds-right">' +
+          '<div class="pl-allbds-amt">' + fmtCompactAmt(allTotalAmt) + '</div>' +
+          '<div class="pl-allbds-sub">' + allOppsLo.length + ' open opportunit' + (allOppsLo.length !== 1 ? 'ies' : 'y') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="pl-allbds-stats">' +
+        '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#1D9E75">' + aAct + '</div><div class="pl-allbds-stat-label">Active</div></div>' +
+        '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#E65100">' + aIn + '</div><div class="pl-allbds-stat-label">Inactive</div></div>' +
+        '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#8899BB">' + aUn + '</div><div class="pl-allbds-stat-label">No data</div></div>' +
+      '</div>' +
+      '<div class="pipeline-stages-list">' + allStageRows + '</div>' +
+    '</div>';
+
+  document.getElementById('lo-pl-pipeline-content').innerHTML = '<div class="pipeline-owners-grid">' + allCard + los.map(lo => {
     const opps = byLo.get(lo) || [];
     const stageMap = new Map();
     for (const row of opps) {
@@ -136,9 +189,14 @@ export function renderLoPipeline() {
       .sort(([a], [b]) => { const n = s => s.toLowerCase().replace(/\s+/g, ' ').trim(); return (stageRank[n(a)] ?? 999) - (stageRank[n(b)] ?? 999); })
       .map(([stage, rows]) => {
         const stageAmt = rows.reduce((s, r) => { const a = parseFloat(getField(r, 'Loan Amount', 'loan amount') || 0); return s + (isNaN(a) ? 0 : a); }, 0);
-        return '<div class="pipeline-stage-row" data-lo-pl-lo="' + lo.replace(/"/g, '&quot;') + '" data-lo-pl-stage="' + stage.replace(/"/g, '&quot;') + '">' +
-          '<div><div class="pipeline-stage-row-name">' + stage + '</div>' + (stageAmt ? '<div class="pipeline-stage-row-sub">$' + stageAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) + '</div>' : '') + '</div>' +
-          '<span class="pipeline-stage-row-chip">' + rows.length + '</span></div>';
+        const fmtAmt = stageAmt ? '$' + stageAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '';
+        return '<div class="pl-stage-item" data-lo-pl-lo="' + lo.replace(/"/g, '&quot;') + '" data-lo-pl-stage="' + stage.replace(/"/g, '&quot;') + '">' +
+          '<div class="pl-stage-info">' +
+            '<div class="pl-stage-title">' + stage + '</div>' +
+            (fmtAmt ? '<div class="pl-stage-amt2">' + fmtAmt + '</div>' : '') +
+          '</div>' +
+          '<div class="pl-stage-num">' + rows.length + '</div>' +
+        '</div>';
       }).join('');
     return '<div class="pl-owner-card">' +
       '<div class="pl-owner-header">' +
@@ -162,9 +220,19 @@ export function renderLoPipeline() {
 function showLoPipelineStageDetail(lo, stage) {
   const inactiveCutoff = getLoInactiveCutoff();
   const today = new Date();
+  const isAll = lo === 'ALL';
+  const allowedLOsForAll = isAll ? getAllowedLOs() : null;
   const rows = (state.oppData || []).filter(row => {
-    if (!matchLo(row, lo)) return false;
     if (String(getField(row, 'Stage', 'stage') || '—').trim() !== stage) return false;
+    if (isAll) {
+      const st = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
+      if (!st || st === 'closed won' || st === 'closed lost') return false;
+      const currStatus = String(getField(row, 'Current Status', 'current status', 'current_status') || '').trim().toLowerCase();
+      if (currStatus.includes('archive loan')) return false;
+      if (String(getField(row, 'Lender', 'lender') || '').trim().toLowerCase().includes('city lending inc')) return false;
+      return allowedLOsForAll.some(l => matchLo(row, l));
+    }
+    if (!matchLo(row, lo)) return false;
     return !String(getField(row, 'Lender', 'lender') || '').trim().toLowerCase().includes('city lending inc');
   });
   if (!rows.length) return;
@@ -191,7 +259,11 @@ function showLoPipelineStageDetail(lo, stage) {
   });
   enriched.sort((a, b) => ({ inactive: 0, active: 1, unknown: 2 }[a.status] ?? 2) - ({ inactive: 0, active: 1, unknown: 2 }[b.status] ?? 2));
   const totalAmt = enriched.reduce((s, e) => { const a = parseFloat(getField(e.row, 'Loan Amount', 'loan amount') || 0); return s + (isNaN(a) ? 0 : a); }, 0);
-  const head = '<tr><th>Realtor</th><th>Status</th><th>Days Since Last Lead</th><th>Loan #</th><th>Opportunity Name</th><th>Branch</th><th>Current Milestone</th><th>Loan Status</th><th>Created Date</th><th>Days Open</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Loan Amount</th></tr>';
+  const head = '<tr>' +
+      '<th colspan="3" style="background:#1D6FA4;color:white;text-align:center">Realtor</th>' +
+      '<th colspan="11" style="background:#0D4B7A;color:white;text-align:center">Loan</th>' +
+    '</tr>' +
+    '<tr><th>Realtor</th><th>Status</th><th>Days Since Last Lead</th><th>Loan #</th><th>Opportunity Name</th><th>Branch</th><th>Current Milestone</th><th>Loan Status</th><th>Created Date</th><th>Days Open</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Loan Amount</th></tr>';
   const body = enriched.map(e => {
     const daysColor = e.daysSince == null ? '#8899BB' : e.daysSince > 90 ? '#A32D2D' : e.daysSince > 45 ? '#856400' : '#085041';
     return '<tr>' +
@@ -211,7 +283,7 @@ function showLoPipelineStageDetail(lo, stage) {
       '<td class="modal-amount">' + e.amtFmt + '</td>' +
     '</tr>';
   }).join('');
-  openModal(lo + ' — ' + stage,
+  openModal((isAll ? 'ALL LOs' : lo) + ' — ' + stage,
     enriched.length + ' opportunit' + (enriched.length !== 1 ? 'ies' : 'y') + ' · Total: ' + (totalAmt ? '$' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'),
     head, body, null);
 }

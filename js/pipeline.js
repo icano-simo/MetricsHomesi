@@ -66,11 +66,23 @@ function unknownRealtorOpps(opps) {
   });
 }
 
-function unknownWarningHtml(cacheKey, opps) {
+function fmtCompactAmt(n) {
+  if (!n || isNaN(n)) return '$0';
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+  return '$' + Math.round(n).toLocaleString('en-US');
+}
+
+function unknownWarningHtml(cacheKey, opps, compact) {
   const unk = unknownRealtorOpps(opps);
   if (!unk.length) return '';
   _unknownCache.set(cacheKey, unk);
-  return '<div class="pipeline-unknown-warning" data-unknown-key="' + cacheKey.replace(/"/g, '&quot;') + '">' +
+  const safe = cacheKey.replace(/"/g, '&quot;');
+  if (compact) {
+    return '<div class="pipeline-unknown-warning compact" data-unknown-key="' + safe + '">' +
+      '⚠ ' + unk.length + ' opp' + (unk.length !== 1 ? 's' : '') + ' with unknown realtor · <span class="pl-review-link">Review →</span></div>';
+  }
+  return '<div class="pipeline-unknown-warning" data-unknown-key="' + safe + '">' +
     '<span>⚠</span> ' + unk.length + ' opp' + (unk.length !== 1 ? 's' : '') + ' with unknown realtor — click to review</div>';
 }
 
@@ -175,7 +187,7 @@ export function renderPipeline() {
 
   const stageRank = { 'need analysis': 0, 'needs analysis': 0, 'qualification': 1, 'proposal': 2, 'negotiation': 3 };
 
-  function buildCard(label, opps, ownerAttr, extraClass) {
+  function buildCard(label, opps, ownerAttr, extraClass, isAll) {
     const stageMap = new Map();
     for (const row of opps) {
       const stage = String(getField(row, 'Stage', 'stage') || '—').trim();
@@ -214,14 +226,36 @@ export function renderPipeline() {
           return s + (isNaN(a) ? 0 : a);
         }, 0);
         const fmtAmt = stageAmt ? '$' + stageAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '';
-        return '<div class="pipeline-stage-row" data-pl-owner="' + ownerAttr.replace(/"/g, '&quot;') + '" data-pl-stage="' + stage.replace(/"/g, '&quot;') + '">' +
-          '<div>' +
-            '<div class="pipeline-stage-row-name">' + stage + '</div>' +
-            (fmtAmt ? '<div class="pipeline-stage-row-sub">' + fmtAmt + '</div>' : '') +
+        return '<div class="pl-stage-item" data-pl-owner="' + ownerAttr.replace(/"/g, '&quot;') + '" data-pl-stage="' + stage.replace(/"/g, '&quot;') + '">' +
+          '<div class="pl-stage-info">' +
+            '<div class="pl-stage-title">' + stage + '</div>' +
+            (fmtAmt ? '<div class="pl-stage-amt2">' + fmtAmt + '</div>' : '') +
           '</div>' +
-          '<span class="pipeline-stage-row-chip">' + rows.length + '</span>' +
+          '<div class="pl-stage-num">' + rows.length + '</div>' +
         '</div>';
       }).join('');
+
+    if (isAll) {
+      return '<div class="pl-owner-card all-bds">' +
+        '<div class="pl-allbds-header">' +
+          '<div>' +
+            '<div class="pl-allbds-title">ALL BDs</div>' +
+            '<div class="pl-allbds-sub">' + owners.length + ' Business Developer' + (owners.length !== 1 ? 's' : '') + '</div>' +
+          '</div>' +
+          '<div class="pl-allbds-right">' +
+            '<div class="pl-allbds-amt">' + fmtCompactAmt(totalAmt) + '</div>' +
+            '<div class="pl-allbds-sub">' + opps.length + ' open opportunit' + (opps.length !== 1 ? 'ies' : 'y') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="pl-allbds-stats">' +
+          '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#1D9E75">' + activeCount + '</div><div class="pl-allbds-stat-label">Active</div></div>' +
+          '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#E65100">' + inactiveCount + '</div><div class="pl-allbds-stat-label">Inactive</div></div>' +
+          '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#8899BB">' + unknownCount + '</div><div class="pl-allbds-stat-label">No data</div></div>' +
+        '</div>' +
+        unknownWarningHtml('pl:' + label, opps, true) +
+        '<div class="pipeline-stages-list">' + stageRows + '</div>' +
+      '</div>';
+    }
 
     const fmtTotal = totalAmt ? '$' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—';
     const warning = unknownWarningHtml('pl:' + label, opps);
@@ -246,8 +280,8 @@ export function renderPipeline() {
   }
 
   const allOpps = owners.flatMap(o => byOwner.get(o) || []);
-  const allCard = buildCard('ALL BDs', allOpps, 'ALL', 'all-bds');
-  const ownerCards = owners.map(o => buildCard(o, byOwner.get(o) || [], o, '')).join('');
+  const allCard = buildCard('ALL BDs', allOpps, 'ALL', 'all-bds', true);
+  const ownerCards = owners.map(o => buildCard(o, byOwner.get(o) || [], o, '', false)).join('');
 
   document.getElementById('pl-pipeline-content').innerHTML =
     '<div class="pipeline-owners-grid">' + allCard + ownerCards + '</div>';
