@@ -3,6 +3,85 @@ import { norm, parseDate, fmtDate, getField, initials } from './utils.js';
 import { openModal } from './modal.js';
 import { dl } from './export.js';
 
+// ── Healthiness breakdown (compartido: pipeline, lo-pipeline, performance, lo-performance) ──
+export function buildHealthBreakdown(opps, ownerAttr) {
+  const counts = { 'On Track': 0, Delayed: 0, 'Out of Scope': 0 };
+  let hasAny = false;
+  for (const row of opps) {
+    const h = String(getField(row, 'Healthiness', 'healthiness') || '').trim();
+    if (!h) continue;
+    hasAny = true;
+    if (counts[h] !== undefined) counts[h]++;
+  }
+  if (!hasAny) return '';
+  const chips = [
+    { key: 'On Track', bg: '#ECFDF5', color: '#065F46' },
+    { key: 'Delayed', bg: '#FFFBEB', color: '#B45309' },
+    { key: 'Out of Scope', bg: '#EFF6FF', color: '#1D4ED8' }
+  ];
+  const ownerEsc = String(ownerAttr).replace(/"/g, '&quot;');
+  const rows = chips.filter(c => counts[c.key] > 0).map(c =>
+    '<div class="health-row" style="display:flex;justify-content:space-between;align-items:center;padding:3px 8px;border-radius:6px;background:' + c.bg + ';margin-bottom:2px;cursor:pointer" data-health="' + c.key + '" data-owner="' + ownerEsc + '" data-pipeline-health="1">' +
+      '<span style="font-size:10px;font-weight:600;color:' + c.color + '">' + c.key + '</span>' +
+      '<span style="font-size:12px;font-weight:700;color:' + c.color + '">' + counts[c.key] + '</span>' +
+    '</div>'
+  ).join('');
+  return '<div class="health-section"><div class="health-label">LOAN HEALTH STATUS</div>' + rows + '</div>';
+}
+
+// Modal de detalle de Healthiness (11 columnas) — recibe opps ya del owner/LO y el valor de health
+export function openHealthModal(opps, ownerLabel, health) {
+  const nH = norm(health);
+  const rows = (opps || []).filter(row => norm(String(getField(row, 'Healthiness', 'healthiness') || '')) === nH);
+  const negFirst = s => /negotiation/i.test(String(s || '')) ? 0 : 1;
+  const amtOf = row => parseFloat(String(getField(row, 'Loan Amount', 'loan amount') || '').replace(/[$,]/g, '')) || 0;
+  rows.sort((a, b) => {
+    const sa = negFirst(getField(a, 'Stage', 'stage')), sb = negFirst(getField(b, 'Stage', 'stage'));
+    if (sa !== sb) return sa - sb;
+    return amtOf(b) - amtOf(a);
+  });
+  const cols = ['Loan #', 'Opportunity Name', 'Realtor', 'Stage', 'Branch', 'Loan Officer', 'Created Date', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Loan Amount'];
+  const head = '<tr>' + cols.map(c => '<th' + (c === 'Loan Amount' ? ' style="text-align:right"' : '') + '>' + c + '</th>').join('') + '</tr>';
+  const body = rows.map(row => {
+    const amt = amtOf(row);
+    return '<tr>' +
+      '<td style="font-family:monospace;font-size:10px;color:#556080">' + (String(getField(row, 'Loan #', 'loan #') || '—').trim()) + '</td>' +
+      '<td style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + (String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim()) + '">' + (String(getField(row, 'Opportunity Name', 'opportunity name') || '—').trim()) + '</td>' +
+      '<td>' + (String(getField(row, 'Referred By', 'referred by') || '—').trim()) + '</td>' +
+      '<td style="font-size:11px">' + (String(getField(row, 'Stage', 'stage') || '—').trim()) + '</td>' +
+      '<td style="font-size:11px">' + (String(getField(row, 'Branch', 'branch') || '—').trim()) + '</td>' +
+      '<td style="font-size:11px">' + (String(getField(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') || '—').trim()) + '</td>' +
+      '<td class="dt">' + fmtDate(parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'))) + '</td>' +
+      '<td class="dt">' + fmtDate(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date'))) + '</td>' +
+      '<td class="dt">' + fmtDate(parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date'))) + '</td>' +
+      '<td class="dt">' + fmtDate(parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date'))) + '</td>' +
+      '<td class="modal-amount" style="text-align:right">' + (amt ? '$' + amt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—') + '</td>' +
+    '</tr>';
+  }).join('');
+  const csvData = [cols, ...rows.map(row => [
+    String(getField(row, 'Loan #', 'loan #') || '').trim(), String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim(),
+    String(getField(row, 'Referred By', 'referred by') || '').trim(), String(getField(row, 'Stage', 'stage') || '').trim(),
+    String(getField(row, 'Branch', 'branch') || '').trim(), String(getField(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') || '').trim(),
+    fmtDate(parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'))),
+    fmtDate(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date'))),
+    fmtDate(parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date'))),
+    fmtDate(parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date'))),
+    amtOf(row) || 0
+  ])];
+  openModal(ownerLabel + ' — ' + health, rows.length + ' opportunit' + (rows.length !== 1 ? 'ies' : 'y'), head, body, csvData);
+}
+
+// Chip de color para la columna "Health Status" en los modales de detalle por stage
+export function healthChipHtml(val) {
+  const h = String(val || '').trim();
+  if (!h) return '<span style="color:#94A3B8">—</span>';
+  const styles = { 'On Track': 'background:#ECFDF5;color:#065F46', 'Delayed': 'background:#FFFBEB;color:#B45309', 'Out of Scope': 'background:#EFF6FF;color:#1D4ED8' };
+  const s = styles[h] || 'background:#F1F5F9;color:#64748B';
+  return '<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;' + s + '">' + h + '</span>';
+}
+
+const _healthCacheP = new Map();
+
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const _cwCsvCache = new Map();
 const _cwDetailCache = new Map();
@@ -148,6 +227,7 @@ export function renderPipeline() {
   const inactiveCutoff = getInactiveCutoff();
   const filterOwners = Array.from(document.getElementById('pl-filter-owner').selectedOptions).map(o => o.value).filter(Boolean);
   const allowedNorm = new Set(getAllowedOwners().map(o => norm(o)));
+  _healthCacheP.clear();
 
   const openOpps = (state.oppData || []).filter(row => {
     const stage = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
@@ -188,6 +268,7 @@ export function renderPipeline() {
   const stageRank = { 'need analysis': 0, 'needs analysis': 0, 'qualification': 1, 'proposal': 2, 'negotiation': 3 };
 
   function buildCard(label, opps, ownerAttr, extraClass, isAll) {
+    _healthCacheP.set(ownerAttr, opps);
     const stageMap = new Map();
     for (const row of opps) {
       const stage = String(getField(row, 'Stage', 'stage') || '—').trim();
@@ -254,6 +335,7 @@ export function renderPipeline() {
         '</div>' +
         unknownWarningHtml('pl:' + label, opps, true) +
         '<div class="pipeline-stages-list">' + stageRows + '</div>' +
+        buildHealthBreakdown(opps, ownerAttr) +
       '</div>';
     }
 
@@ -276,6 +358,7 @@ export function renderPipeline() {
       '</div>' +
       warning +
       '<div class="pipeline-stages-list">' + stageRows + '</div>' +
+      buildHealthBreakdown(opps, ownerAttr) +
     '</div>';
   }
 
@@ -344,12 +427,12 @@ export function showPipelineStageDetail(owner, stage) {
   const head =
     '<tr>' +
       '<th colspan="3" style="background:#1D6FA4;color:white;text-align:center">Realtor</th>' +
-      '<th colspan="11" style="background:#0D4B7A;color:white;text-align:center">Loan</th>' +
+      '<th colspan="12" style="background:#0D4B7A;color:white;text-align:center">Loan</th>' +
     '</tr>' +
     '<tr>' +
       '<th>Realtor Name</th><th>Realtor Status</th><th>Days Since Last Lead</th>' +
       '<th>Loan #</th><th>Opportunity Name</th><th>Branch</th><th>Loan Officer</th>' +
-      '<th>Current Milestone</th><th>Opp. Created Date</th><th>Days Open as Opportunity</th>' +
+      '<th>Current Milestone</th><th>Health Status</th><th>Opp. Created Date</th><th>Days Open as Opportunity</th>' +
       '<th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Loan Amount</th>' +
     '</tr>';
 
@@ -365,6 +448,7 @@ export function showPipelineStageDetail(owner, stage) {
       '<td style="font-size:11px">' + e.branch + '</td>' +
       '<td style="font-size:11px">' + e.loanOfficer + '</td>' +
       '<td style="font-size:11px">' + e.currentMilestone + '</td>' +
+      '<td>' + healthChipHtml(getField(e.row, 'Healthiness', 'healthiness')) + '</td>' +
       '<td class="dt">' + fmtDate(e.oppCd) + '</td>' +
       '<td style="text-align:center;font-weight:700;color:' + (e.daysOpen == null ? '#8899BB' : e.daysOpen > 180 ? '#A32D2D' : e.daysOpen > 90 ? '#856400' : '#085041') + '">' + (e.daysOpen != null ? e.daysOpen + 'd' : '—') + '</td>' +
       '<td class="dt">' + (e.preApprovalDate ? fmtDate(e.preApprovalDate) : '—') + '</td>' +
@@ -381,11 +465,12 @@ export function showPipelineStageDetail(owner, stage) {
   const totalFmt = totalAmt ? '$' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—';
 
   const csvData = [
-    ['Realtor Name', 'Realtor Status', 'Days Since Last Lead', 'Loan #', 'Opportunity Name', 'Branch', 'Loan Officer', 'Current Milestone', 'Opp. Created Date', 'Days Open as Opportunity', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Loan Amount'],
+    ['Realtor Name', 'Realtor Status', 'Days Since Last Lead', 'Loan #', 'Opportunity Name', 'Branch', 'Loan Officer', 'Current Milestone', 'Health Status', 'Opp. Created Date', 'Days Open as Opportunity', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Loan Amount'],
     ...enriched.map(e => [
       e.realtorName, e.status, e.daysSince ?? '', e.lnNum, e.oppName,
       e.branch === '—' ? '' : e.branch, e.loanOfficer === '—' ? '' : e.loanOfficer,
       e.currentMilestone === '—' ? '' : e.currentMilestone,
+      String(getField(e.row, 'Healthiness', 'healthiness') || '').trim(),
       fmtDate(e.oppCd),
       e.daysOpen ?? '',
       e.preApprovalDate ? fmtDate(e.preApprovalDate) : '',
@@ -521,10 +606,11 @@ export function renderClosedWon() {
     if (st === 'active') allActive++;
     else if (st === 'inactive') allInactive++;
   }
-  const allBranchBreakdown = [...branchMap.entries()]
-    .sort((a, b) => b[1].amt - a[1].amt)
-    .filter(([, v]) => v.count > 0)
-    .map(([name, v]) => '<div class="perf-leads-breakdown-row"><span class="plb-label">' + name + '</span><span class="plb-count">' + v.count + '</span></div>')
+  const allBdBreakdown = [...byOwner.entries()]
+    .map(([owner, opps]) => ({ owner, count: opps.length }))
+    .filter(b => b.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .map(b => '<div class="perf-leads-breakdown-row" style="cursor:pointer" data-cw-detail-owner="' + b.owner.replace(/"/g, '&quot;') + '" title="View ' + b.owner.replace(/"/g, '&quot;') + ' closings"><span class="plb-label">' + b.owner + '</span><span class="plb-count">' + b.count + '</span></div>')
     .join('');
   const allBdsCard =
     '<div class="pl-owner-card all-bds">' +
@@ -534,8 +620,8 @@ export function renderClosedWon() {
           '<div class="pl-allbds-sub">' + byOwner.size + ' Business Developer' + (byOwner.size !== 1 ? 's' : '') + '</div>' +
         '</div>' +
         '<div class="pl-allbds-right">' +
-          '<div class="pl-allbds-amt">' + (totalAmt ? '$' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$0') + '</div>' +
-          '<div class="pl-allbds-sub"><span class="clickable-num" style="cursor:pointer;text-decoration:underline" data-cw-detail-owner="ALL" title="View all closings">' + totalCount + ' closing' + (totalCount !== 1 ? 's' : '') + '</span></div>' +
+          '<div class="pl-allbds-amt" style="font-size:24px;cursor:pointer;text-decoration:underline" data-cw-detail-owner="ALL" title="View all closings">' + totalCount + ' closing' + (totalCount !== 1 ? 's' : '') + '</div>' +
+          '<div class="pl-allbds-sub" style="font-size:14px;color:rgba(255,255,255,0.8)">' + (totalAmt ? '$' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$0') + '</div>' +
         '</div>' +
       '</div>' +
       '<div class="pl-allbds-stats">' +
@@ -543,7 +629,7 @@ export function renderClosedWon() {
         '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#E65100">' + allInactive + '</div><div class="pl-allbds-stat-label">Inactive</div></div>' +
         '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#1565C0">' + allRealtorKeysCW.length + '</div><div class="pl-allbds-stat-label">Realtors</div></div>' +
       '</div>' +
-      '<div class="perf-leads-breakdown" style="padding:6px 12px 12px">' + allBranchBreakdown + '</div>' +
+      '<div class="perf-leads-breakdown" style="padding:6px 12px 12px">' + allBdBreakdown + '</div>' +
     '</div>';
 
   const cardsHtml = '<div class="pipeline-owners-grid">' + allBdsCard + [...byOwner.keys()].sort().map(owner => {
@@ -722,4 +808,14 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-cw-detail-owner]');
   if (!el) return;
   showClosedWonDetail(el.getAttribute('data-cw-detail-owner'));
+});
+
+// Healthiness chips → modal de detalle (BD Pipeline)
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-pipeline-health]');
+  if (!el || !el.closest('#pl-pipeline-content')) return;
+  const owner = el.getAttribute('data-owner');
+  const opps = _healthCacheP.get(owner);
+  if (!opps) return;
+  openHealthModal(opps, owner === 'ALL' ? 'ALL BDs' : owner, el.getAttribute('data-health'));
 });

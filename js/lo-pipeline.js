@@ -2,7 +2,9 @@ import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, initials, normalizeLO } from './utils.js';
 import { openModal } from './modal.js';
 import { dl } from './export.js';
+import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
+const _healthCacheLoP = new Map();
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const _loCwDetailCache = new Map();
 
@@ -122,7 +124,9 @@ export function renderLoPipeline() {
   const realtorCache = buildRealtorCacheLo(allRealtorKeys, inactiveCutoff);
 
   // ── Tarjeta agregada "ALL LOs" (mismo patrón/estilo que "ALL BDs" de BD) ──
+  _healthCacheLoP.clear();
   const allOppsLo = los.flatMap(lo => byLo.get(lo) || []);
+  _healthCacheLoP.set('ALL', allOppsLo);
   const allStageMap = new Map();
   for (const row of allOppsLo) {
     const stage = String(getField(row, 'Stage', 'stage') || '—').trim();
@@ -165,10 +169,12 @@ export function renderLoPipeline() {
         '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#8899BB">' + aUn + '</div><div class="pl-allbds-stat-label">No data</div></div>' +
       '</div>' +
       '<div class="pipeline-stages-list">' + allStageRows + '</div>' +
+      buildHealthBreakdown(allOppsLo, 'ALL') +
     '</div>';
 
   document.getElementById('lo-pl-pipeline-content').innerHTML = '<div class="pipeline-owners-grid">' + allCard + los.map(lo => {
     const opps = byLo.get(lo) || [];
+    _healthCacheLoP.set(lo, opps);
     const stageMap = new Map();
     for (const row of opps) {
       const stage = String(getField(row, 'Stage', 'stage') || '—').trim();
@@ -213,6 +219,7 @@ export function renderLoPipeline() {
         (unknownCount ? '<span class="pl-rs-item pl-chip-unknown"><i class="ti ti-help"></i> ' + unknownCount + ' no data</span>' : '') +
       '</div>' +
       '<div class="pipeline-stages-list">' + stageRows + '</div>' +
+      buildHealthBreakdown(opps, lo) +
     '</div>';
   }).join('') + '</div>';
 }
@@ -261,9 +268,9 @@ function showLoPipelineStageDetail(lo, stage) {
   const totalAmt = enriched.reduce((s, e) => { const a = parseFloat(getField(e.row, 'Loan Amount', 'loan amount') || 0); return s + (isNaN(a) ? 0 : a); }, 0);
   const head = '<tr>' +
       '<th colspan="3" style="background:#1D6FA4;color:white;text-align:center">Realtor</th>' +
-      '<th colspan="11" style="background:#0D4B7A;color:white;text-align:center">Loan</th>' +
+      '<th colspan="12" style="background:#0D4B7A;color:white;text-align:center">Loan</th>' +
     '</tr>' +
-    '<tr><th>Realtor</th><th>Status</th><th>Days Since Last Lead</th><th>Loan #</th><th>Opportunity Name</th><th>Branch</th><th>Current Milestone</th><th>Loan Status</th><th>Created Date</th><th>Days Open</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Loan Amount</th></tr>';
+    '<tr><th>Realtor</th><th>Status</th><th>Days Since Last Lead</th><th>Loan #</th><th>Opportunity Name</th><th>Branch</th><th>Current Milestone</th><th>Health Status</th><th>Loan Status</th><th>Created Date</th><th>Days Open</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Loan Amount</th></tr>';
   const body = enriched.map(e => {
     const daysColor = e.daysSince == null ? '#8899BB' : e.daysSince > 90 ? '#A32D2D' : e.daysSince > 45 ? '#856400' : '#085041';
     return '<tr>' +
@@ -274,6 +281,7 @@ function showLoPipelineStageDetail(lo, stage) {
       '<td style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + e.oppName + '">' + e.oppName + '</td>' +
       '<td style="font-size:11px">' + e.branch + '</td>' +
       '<td style="font-size:11px">' + e.currentMilestone + '</td>' +
+      '<td>' + healthChipHtml(getField(e.row, 'Healthiness', 'healthiness')) + '</td>' +
       '<td style="font-size:11px">' + e.loanStatus + '</td>' +
       '<td class="dt">' + fmtDate(e.oppCd) + '</td>' +
       '<td style="text-align:center;font-weight:700;color:' + (e.daysOpen == null ? '#8899BB' : e.daysOpen > 180 ? '#A32D2D' : e.daysOpen > 90 ? '#856400' : '#085041') + '">' + (e.daysOpen != null ? e.daysOpen + 'd' : '—') + '</td>' +
@@ -409,6 +417,16 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-lo-pl-lo][data-lo-pl-stage]');
   if (!el) return;
   showLoPipelineStageDetail(el.getAttribute('data-lo-pl-lo'), el.getAttribute('data-lo-pl-stage'));
+});
+
+// Healthiness chips → modal de detalle (LO Pipeline)
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-pipeline-health]');
+  if (!el || !el.closest('#lo-pl-pipeline-content')) return;
+  const lo = el.getAttribute('data-owner');
+  const opps = _healthCacheLoP.get(lo);
+  if (!opps) return;
+  openHealthModal(opps, lo === 'ALL' ? 'ALL LOs' : lo, el.getAttribute('data-health'));
 });
 
 // Event delegation for LO CW card clicks

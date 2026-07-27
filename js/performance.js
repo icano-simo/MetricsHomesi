@@ -3,8 +3,10 @@ import { norm, parseDate, fmtDate, getField } from './utils.js';
 import { sbFetch } from './supabase.js';
 import { openModal } from './modal.js';
 import { findRealtorMatch } from './meetings-review.js';
+import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
 export const kpiGoals = { loanAmount: 700000, pipelineOpps: 10, loanCountGoal: 2 };
+const _healthCachePerf = new Map();
 
 export async function loadKpiSettings() {
   try {
@@ -495,6 +497,7 @@ function buildOppTable(rows, title, sub) {
       realtor: String(getField(row, 'Referred By', 'referred by') || '—').trim(),
       loanOfficer: String(getField(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') || '').trim() || '—',
       stage,
+      health: String(getField(row, 'Healthiness', 'healthiness') || '').trim(),
       preApproval: parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date', 'Pre-Approval Date', 'pre-approval date')),
       ratified: parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date')),
       estClosing: parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'estimated closing date', 'Estimated Closing Date', 'Close Date', 'close date')),
@@ -504,7 +507,7 @@ function buildOppTable(rows, title, sub) {
     };
   });
   enriched.sort((a, b) => (a.createdDate || 0) - (b.createdDate || 0));
-  const head = '<tr><th>Loan #</th><th>Opportunity Name</th><th>Realtor</th><th>Loan Officer</th><th>Stage</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Disbursement Date</th><th>Created Date</th><th>Loan Amount</th></tr>';
+  const head = '<tr><th>Loan #</th><th>Opportunity Name</th><th>Realtor</th><th>Loan Officer</th><th>Stage</th><th>Health Status</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Disbursement Date</th><th>Created Date</th><th>Loan Amount</th></tr>';
   const body = enriched.map(e =>
     '<tr>' +
     '<td style="font-family:monospace;font-size:10px;color:#556080">' + e.lnNum + '</td>' +
@@ -512,6 +515,7 @@ function buildOppTable(rows, title, sub) {
     '<td>' + e.realtor + '</td>' +
     '<td style="font-size:11px">' + e.loanOfficer + '</td>' +
     '<td style="font-size:11px">' + e.stage + '</td>' +
+    '<td>' + healthChipHtml(e.health) + '</td>' +
     '<td class="dt">' + (e.preApproval ? fmtDate(e.preApproval) : '—') + '</td>' +
     '<td class="dt">' + (e.ratified ? fmtDate(e.ratified) : '—') + '</td>' +
     '<td class="dt">' + (e.estClosing ? fmtDate(e.estClosing) : '—') + '</td>' +
@@ -524,8 +528,8 @@ function buildOppTable(rows, title, sub) {
     title, sub,
     head, body,
     csvData: [
-      ['Loan #', 'Opportunity Name', 'Realtor', 'Loan Officer', 'Stage', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Disbursement Date', 'Created Date', 'Loan Amount'],
-      ...enriched.map(e => [e.lnNum, e.oppName, e.realtor, e.loanOfficer, e.stage, e.preApproval ? fmtDate(e.preApproval) : '', e.ratified ? fmtDate(e.ratified) : '', e.estClosing ? fmtDate(e.estClosing) : '', e.disbursement ? fmtDate(e.disbursement) : '', fmtDate(e.createdDate), e.loanAmt || ''])
+      ['Loan #', 'Opportunity Name', 'Realtor', 'Loan Officer', 'Stage', 'Health Status', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Disbursement Date', 'Created Date', 'Loan Amount'],
+      ...enriched.map(e => [e.lnNum, e.oppName, e.realtor, e.loanOfficer, e.stage, e.health, e.preApproval ? fmtDate(e.preApproval) : '', e.ratified ? fmtDate(e.ratified) : '', e.estClosing ? fmtDate(e.estClosing) : '', e.disbursement ? fmtDate(e.disbursement) : '', fmtDate(e.createdDate), e.loanAmt || ''])
     ]
   };
 }
@@ -961,6 +965,8 @@ export function renderPerformance() {
     const ref = String(getField(row, 'Referred By', 'referred by') || '').trim();
     if (ref) openPipeRealtorKeys.add(norm(ref));
   }
+  _healthCachePerf.clear();
+  _healthCachePerf.set(owner, openAllRows);
 
   // ── Lost Opportunities: Closed Lost with a milestone date within the period ──
   const lostInRange = (d, s, e) => d && d >= s && d <= e;
@@ -1665,7 +1671,7 @@ export function renderPerformance() {
             pipeRealtorsHtml +
             '<div class="perf-kpi-sub" style="color:#94A3B8">' + openPipeAsOf + '</div>' +
           '</div>' +
-          '<div class="perf-card-right">' + openBreakdownHtml + '</div>' +
+          '<div class="perf-card-right">' + openBreakdownHtml + buildHealthBreakdown(openAllRows, owner) + '</div>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -1835,4 +1841,14 @@ document.addEventListener('click', e => {
   const key = el.getAttribute('data-perf-modal');
   const m = _perfModalCache.get(key);
   if (m) openModal(m.title, m.sub, m.head, m.body, m.csvData);
+});
+
+// Healthiness chips → modal de detalle (BD Performance — Open Pipeline)
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-pipeline-health]');
+  if (!el || !el.closest('#perf-content')) return;
+  const owner = el.getAttribute('data-owner');
+  const opps = _healthCachePerf.get(owner);
+  if (!opps) return;
+  openHealthModal(opps, owner, el.getAttribute('data-health'));
 });

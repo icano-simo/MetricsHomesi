@@ -2,6 +2,9 @@ import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, normalizeLO } from './utils.js';
 import { openModal } from './modal.js';
 import { kpiGoals } from './performance.js';
+import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
+
+const _healthCacheLoPerf = new Map();
 
 function getAllowedLOs() {
   return document.getElementById('lo-list').value
@@ -760,6 +763,8 @@ export function renderLoPerformance() {
     if (cat) openStageRows[cat].push(row);
   }
   const openPipeCount = openAllRows.length;
+  _healthCacheLoPerf.clear();
+  _healthCacheLoPerf.set(lo, openAllRows);
 
   const openActiveSet = new Set((state.loActiveResults || []).map(r => r.key));
   const openInactiveSet = new Set((state.loInactiveResults || []).map(r => r.key));
@@ -790,7 +795,7 @@ export function renderLoPerformance() {
       String(getField(a, 'Referred By', 'referred by') || '').localeCompare(String(getField(b, 'Referred By', 'referred by') || '')));
     const head = '<tr>' +
       '<th>Realtor</th><th>Realtor Status</th><th style="text-align:center">Days Since Last Lead</th>' +
-      '<th>Loan #</th><th>Opportunity Name</th><th>Branch</th><th>BD Owner</th>' +
+      '<th>Loan #</th><th>Opportunity Name</th><th>Branch</th><th>BD Owner</th><th>Health Status</th>' +
       '<th>Created Date</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Pre-Qual Date</th><th>Est. Closing Date</th>' +
       '<th style="text-align:right">Loan Amount</th></tr>';
     let totalAmt = 0;
@@ -810,6 +815,7 @@ export function renderLoPerformance() {
         '<td style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + (String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim()) + '">' + (String(getField(row, 'Opportunity Name', 'opportunity name') || '—').trim()) + '</td>' +
         '<td style="font-size:11px">' + (String(getField(row, 'Branch', 'branch') || '').trim() || '—') + '</td>' +
         '<td style="font-size:11px">' + (String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim() || '—') + '</td>' +
+        '<td>' + healthChipHtml(getField(row, 'Healthiness', 'healthiness')) + '</td>' +
         '<td class="dt">' + fmtDate(parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'))) + '</td>' +
         '<td class="dt">' + fmtDate(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date'))) + '</td>' +
         '<td class="dt">' + fmtDate(parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date'))) + '</td>' +
@@ -819,7 +825,7 @@ export function renderLoPerformance() {
       '</tr>';
     }).join('');
     const csvData = [
-      ['Realtor', 'Realtor Status', 'Days Since Last Lead', 'Loan #', 'Opportunity Name', 'Branch', 'BD Owner', 'Created Date', 'Pre-Approval Date', 'Ratified Date', 'Pre-Qual Date', 'Est. Closing Date', 'Loan Amount'],
+      ['Realtor', 'Realtor Status', 'Days Since Last Lead', 'Loan #', 'Opportunity Name', 'Branch', 'BD Owner', 'Health Status', 'Created Date', 'Pre-Approval Date', 'Ratified Date', 'Pre-Qual Date', 'Est. Closing Date', 'Loan Amount'],
       ...sorted.map(row => {
         const ref = String(getField(row, 'Referred By', 'referred by') || '').trim();
         const rkey = norm(ref);
@@ -829,6 +835,7 @@ export function renderLoPerformance() {
         return [ref, openStatusInfo(rkey).label, days == null ? '' : days, String(getField(row, 'Loan #', 'loan #') || '').trim(),
           String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim(), String(getField(row, 'Branch', 'branch') || '').trim(),
           String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim(),
+          String(getField(row, 'Healthiness', 'healthiness') || '').trim(),
           fmtDate(parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'))),
           fmtDate(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date'))),
           fmtDate(parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date'))),
@@ -969,7 +976,7 @@ export function renderLoPerformance() {
           openPipeRealtorsHtml +
           '<div class="perf-kpi-sub" style="color:#94A3B8">' + openPipeAsOf + '</div>' +
         '</div>' +
-        '<div class="perf-card-right">' + openPipeBreakdownHtml + '</div>' +
+        '<div class="perf-card-right">' + openPipeBreakdownHtml + buildHealthBreakdown(openAllRows, lo) + '</div>' +
       '</div>' +
     '</div>';
 
@@ -1456,4 +1463,14 @@ document.addEventListener('click', e => {
   const key = el.getAttribute('data-lo-perf-modal');
   const m = _loPerfModalCache.get(key);
   if (m) openModal(m.title, m.sub, m.head, m.body, m.csvData);
+});
+
+// Healthiness chips → modal de detalle (LO Performance — Open Pipeline)
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-pipeline-health]');
+  if (!el || !el.closest('#lo-perf-content')) return;
+  const lo = el.getAttribute('data-owner');
+  const opps = _healthCacheLoPerf.get(lo);
+  if (!opps) return;
+  openHealthModal(opps, lo, el.getAttribute('data-health'));
 });

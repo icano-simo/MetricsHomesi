@@ -4,6 +4,9 @@ html{scrollbar-gutter:stable}
 body{font-family:'Inter',sans-serif;background:#F0F4FA;color:var(--hs-navy);font-size:13px;min-height:100vh}
 .topbar{background:var(--hs-navy);padding:14px 24px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden}
 .logo-mark{width:36px;height:36px;background:var(--hs-red);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.health-section{margin-top:10px;padding-top:10px;border-top:1px dashed #E2E8F0}
+.health-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#94A3B8;margin-bottom:5px}
+.health-row:hover{filter:brightness(0.96)}
 .logo-text{font-family:'Barlow',sans-serif;font-weight:700;font-size:20px;color:white;letter-spacing:.5px}
 .logo-text span{color:var(--hs-red)}
 .topbar-sub{margin-left:auto;font-size:10px;color:rgba(255,255,255,0.4);font-family:'Barlow',sans-serif;letter-spacing:1px;text-transform:uppercase}
@@ -441,6 +444,10 @@ select[multiple] option{padding:5px 8px;font-size:12px}
 .perf-card-body{display:flex;gap:16px;align-items:flex-start;width:100%}
 .perf-card-left{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;flex:3;min-width:0;gap:4px}
 .perf-card-right{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;flex:2;min-width:110px;padding-top:0;margin-top:0}
+.perf-card-left{padding-top:0;margin-top:0}
+.perf-card-left .perf-kpi-value{margin-top:0;padding-top:0;line-height:1}
+.perf-card-right .perf-leads-breakdown{margin-top:0;padding-top:0}
+.perf-card-right .perf-leads-breakdown-row:first-child{margin-top:0;padding-top:2px}
 .perf-b2b-window-compact{font-size:10px;color:#CBD5E1;font-style:italic;margin-top:2px;margin-bottom:4px;line-height:1.2}
 .perf-hf-team-avg{margin-top:8px;padding-top:8px;border-top:1px solid #F1F5F9;font-size:11px;color:#94A3B8}
 .perf-grid-3,.perf-grid-activity,.perf-grid-split{align-items:stretch}
