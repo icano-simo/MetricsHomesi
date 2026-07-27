@@ -154,9 +154,6 @@ async function _runCalc() {
       else if (c1 && c3)        med = 'Farming Lead';
       else                      med = 'Sin medición';
       const curCw = curCwMap.get(key) || 0, curRat = curRatMap.get(key) || 0, curPa = curPaMap.get(key) || 0;
-      if (rec.name.toLowerCase().includes('castaneda') || rec.name.toLowerCase().includes('bruno')) {
-        console.log('BRUNO DEBUG:', { key, name: rec.name, cnt, recentDatesLength: rec.recentDates.length, assignedOwner, isActive, c1, c2, c3, c4 });
-      }
       state.activeResults.push({ key, name: rec.name, cnt, convertedCount: rec.convertedCount, firstDate, penult, lastDate, c1, c2, c3, c4, cw, pa, rat, curCw, curRat, curPa, med, assignedOwner, assignedBranch, ownerSource, confirmed, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     } else {
       const curCw2 = curCwMap.get(key) || 0, curRat2 = curRatMap.get(key) || 0, curPa2 = curPaMap.get(key) || 0;

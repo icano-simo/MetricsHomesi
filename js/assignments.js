@@ -16,7 +16,6 @@ export function loadSfReference(inputEl) {
       const wb = XLSX.read(ev.target.result, { type: 'binary', cellDates: false });
       const sn = wb.SheetNames[0];
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
-      console.log('[upload realtor map] sample row:', JSON.stringify(rows[0]));
       // Deduplicate by realtor_key — last occurrence wins
       const dedupMap = new Map();
       for (const row of rows) {

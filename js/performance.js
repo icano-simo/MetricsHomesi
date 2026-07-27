@@ -641,11 +641,6 @@ function buildZoomMeetingsModal(meetingsDetail, owner, label) {
   for (const r of (state.zoomData || [])) {
     if (r.meeting_id && !topicMap.has(r.meeting_id)) topicMap.set(r.meeting_id, (r.topic || '').trim() || null);
   }
-  if (meetingsDetail.length && state.zoomData) {
-    const meetingId = meetingsDetail[0].meetingId;
-    const sampleRow = state.zoomData.find(r => r.meeting_id === meetingId);
-    console.log('[MR] sample zoom row for topic:', JSON.stringify(sampleRow));
-  }
   // Helper: date range across leads
   const _leadDates = leads => {
     let mn = null, mx = null;
@@ -736,16 +731,18 @@ function buildZoomExternalsModal(externalsList, owner, label) {
 function buildLeadsModal(rows, owner, label) {
   const enriched = rows.map(row => ({
     realtor:     String(getField(row, 'Referred By', 'referred by') || '—').trim(),
+    borrower:    (() => { const fn = String(getField(row, 'First Name', 'first name', 'first_name') || '').trim(); const ln = String(getField(row, 'Last Name', 'last name', 'last_name') || '').trim(); return (fn + ' ' + ln).trim() || '—'; })(),
     leadOwner:   String(getField(row, 'Lead Owner', 'lead owner', 'Owner', 'owner') || '—').trim(),
     createdDate: parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date')),
     status:      String(getField(row, 'Lead Status', 'lead status') || '—').trim(),
     loanOfficer: String(getField(row, 'Loan Officer', 'loan officer', 'loan_officer') || '').trim() || '—',
     converted:   getField(row, 'Converted', 'converted')
   })).sort((a, b) => (a.createdDate || 0) - (b.createdDate || 0));
-  const head = '<tr><th>Realtor</th><th>Lead Owner</th><th>Created Date</th><th>Lead Status</th><th>Loan Officer</th><th>Converted</th></tr>';
+  const head = '<tr><th>Realtor</th><th>Borrower</th><th>Lead Owner</th><th>Created Date</th><th>Lead Status</th><th>Loan Officer</th><th>Converted</th></tr>';
   const body = enriched.map(e =>
     '<tr>' +
     '<td style="font-weight:600">' + e.realtor + '</td>' +
+    '<td style="font-size:11px">' + e.borrower + '</td>' +
     '<td style="font-size:11px">' + e.leadOwner + '</td>' +
     '<td class="dt">' + fmtDate(e.createdDate) + '</td>' +
     '<td style="font-size:11px">' + e.status + '</td>' +
@@ -758,8 +755,66 @@ function buildLeadsModal(rows, owner, label) {
     sub: label + ' · ' + enriched.length + ' lead' + (enriched.length !== 1 ? 's' : ''),
     head, body,
     csvData: [
-      ['Realtor', 'Lead Owner', 'Created Date', 'Lead Status', 'Loan Officer', 'Converted'],
-      ...enriched.map(e => [e.realtor, e.leadOwner, fmtDate(e.createdDate), e.status, e.loanOfficer, e.converted ? 'Yes' : 'No'])
+      ['Realtor', 'Borrower', 'Lead Owner', 'Created Date', 'Lead Status', 'Loan Officer', 'Converted'],
+      ...enriched.map(e => [e.realtor, e.borrower, e.leadOwner, fmtDate(e.createdDate), e.status, e.loanOfficer, e.converted ? 'Yes' : 'No'])
+    ]
+  };
+}
+
+function buildLeadsRealtorsModal(rows, owner, label) {
+  const byRealtor = new Map();
+  for (const row of rows) {
+    const ref = String(getField(row, 'Referred By', 'referred by') || '—').trim();
+    const key = norm(ref) || '—';
+    let r = byRealtor.get(key);
+    if (!r) { r = { name: ref, total: 0, New: 0, Working: 0, 'On Hold': 0, Discarded: 0, Converted: 0 }; byRealtor.set(key, r); }
+    r.total++;
+    const st = String(getField(row, 'Lead Status', 'lead status') || '').toLowerCase();
+    const conv = getField(row, 'Converted', 'converted');
+    const isConv = conv === true || String(conv).toLowerCase() === 'true' || st.includes('qualified') || st.includes('converted');
+    if (st.includes('new')) r.New++;
+    if (st.includes('working')) r.Working++;
+    if (st.includes('hold')) r['On Hold']++;
+    if (st.includes('discard') || st.includes('unqualified') || st.includes('dead')) r.Discarded++;
+    if (isConv) r.Converted++;
+  }
+  const rowsArr = [...byRealtor.values()].sort((a, b) => b.total - a.total);
+  const convColor = p => p > 30 ? '#065F46' : p >= 15 ? '#B45309' : '#BE123C';
+  const head = '<tr><th>Realtor</th><th style="text-align:center">Total Leads</th><th style="text-align:center">New</th><th style="text-align:center">Working</th><th style="text-align:center">On Hold</th><th style="text-align:center">Discarded</th><th style="text-align:center">Converted</th><th style="text-align:center">Conversion Rate</th></tr>';
+  const body = rowsArr.map(r => {
+    const rate = r.total ? (r.Converted / r.total * 100) : 0;
+    return '<tr>' +
+      '<td style="font-weight:600">' + r.name + '</td>' +
+      '<td style="text-align:center;font-weight:700">' + r.total + '</td>' +
+      '<td style="text-align:center">' + (r.New || '—') + '</td>' +
+      '<td style="text-align:center">' + (r.Working || '—') + '</td>' +
+      '<td style="text-align:center">' + (r['On Hold'] || '—') + '</td>' +
+      '<td style="text-align:center">' + (r.Discarded || '—') + '</td>' +
+      '<td style="text-align:center">' + (r.Converted || '—') + '</td>' +
+      '<td style="text-align:center;font-weight:700;color:' + convColor(rate) + '">' + rate.toFixed(1) + '%</td>' +
+    '</tr>';
+  }).join('');
+  const sum = k => rowsArr.reduce((s, r) => s + r[k], 0);
+  const totTotal = sum('total'), totConv = sum('Converted');
+  const avgRate = totTotal ? (totConv / totTotal * 100) : 0;
+  const totals = '<tr style="background:#0B192C;font-family:\'Barlow\',sans-serif;font-weight:700;color:white">' +
+    '<td>TOTAL</td>' +
+    '<td style="text-align:center">' + totTotal + '</td>' +
+    '<td style="text-align:center">' + sum('New') + '</td>' +
+    '<td style="text-align:center">' + sum('Working') + '</td>' +
+    '<td style="text-align:center">' + sum('On Hold') + '</td>' +
+    '<td style="text-align:center">' + sum('Discarded') + '</td>' +
+    '<td style="text-align:center">' + totConv + '</td>' +
+    '<td style="text-align:center">' + avgRate.toFixed(1) + '%</td>' +
+  '</tr>';
+  return {
+    title: owner + ' — Realtors Lead Breakdown',
+    sub: label + ' · ' + rowsArr.length + ' realtor' + (rowsArr.length !== 1 ? 's' : ''),
+    head, body: body + totals,
+    csvData: [
+      ['Realtor', 'Total Leads', 'New', 'Working', 'On Hold', 'Discarded', 'Converted', 'Conversion Rate'],
+      ...rowsArr.map(r => { const rate = r.total ? (r.Converted / r.total * 100) : 0; return [r.name, r.total, r.New, r.Working, r['On Hold'], r.Discarded, r.Converted, rate.toFixed(1) + '%']; }),
+      ['TOTAL', totTotal, sum('New'), sum('Working'), sum('On Hold'), sum('Discarded'), totConv, avgRate.toFixed(1) + '%']
     ]
   };
 }
@@ -920,6 +975,7 @@ export function renderPerformance() {
   _perfModalCache.set('mainZoomMeetings',  buildZoomMeetingsModal(mainZoom.meetingsDetail, owner, mainLbl));
   _perfModalCache.set('mainZoomExternals', buildZoomExternalsModal(mainZoom.externalsList, owner, mainLbl));
   _perfModalCache.set('mainLeads',         buildLeadsModal(mainLeads.rows, owner, mainLbl));
+  _perfModalCache.set('leadRealtors',      buildLeadsRealtorsModal(mainLeads.rows, owner, mainLbl));
   if (hasCmp) {
     _perfModalCache.set('cmpLoan',          buildLoanModal(owner, cmpBounds.start, cmpBounds.end, cmpLbl));
     _perfModalCache.set('cmpPipe',          buildPipelineModal(owner, cmpBounds.start, cmpBounds.end, cmpLbl));
@@ -1153,7 +1209,7 @@ export function renderPerformance() {
   const mcBg = mcRate > 30 ? '#F0FDF4' : mcRate >= 15 ? '#FFFBEB' : '#FFF1F2';
   const meetConvHtml = '<div class="perf-conversion-rate" style="background:' + mcBg + ';border-left-color:' + mcColor + ';justify-content:flex-start"><span class="pcr-label" style="color:' + mcColor + '">' + mainInvites.conversionRate + '% realtors referred leads after meeting</span></div>';
 
-  const meetCols = ['Realtor Name', 'Branch', 'Loan Officers', 'Meeting Attended Date', 'Invite Sent Date', 'NPPM', 'Leads in Pipeline'];
+  const meetCols = ['Realtor Name', 'Branch', 'Loan Officers', 'Meeting Attended Date', 'Invite Sent Date', 'NPPM', '# Leads', 'First Lead'];
   const leadActivityHtml = r => r.leadCount > 0
     ? '<td style="font-size:11px"><div>' + fmtDate(r.firstLeadDate) + ' → ' + fmtDate(r.lastLeadDate) + '</div><div style="font-size:9px;color:#94A3B8">' + r.leadCount + ' leads total</div></td>'
     : '<td style="color:#94A3B8;font-size:11px">No leads yet</td>';
@@ -1167,8 +1223,9 @@ export function renderPerformance() {
       '<td class="dt">' + (r.inviteD ? fmtDate(r.inviteD) : '—') + '</td>' +
       '<td style="text-align:center">' + (r.nppm ? '<span style="color:#6D28D9;font-weight:700">Yes</span>' : '<span style="color:#8899BB">—</span>') + '</td>' +
       '<td style="text-align:center;font-weight:700">' + (r.leadCount > 0 ? r.leadCount : '—') + '</td>' +
+      '<td class="dt">' + (r.firstLeadDate ? fmtDate(r.firstLeadDate) : '—') + '</td>' +
     '</tr>';
-  const meetCsvRow = r => [r.name, r.branch, r.loanOfficer, r.attendD ? fmtDate(r.attendD) : '', r.inviteD ? fmtDate(r.inviteD) : '', r.nppm ? 'Yes' : '', r.leadCount > 0 ? r.leadCount : ''];
+  const meetCsvRow = r => [r.name, r.branch, r.loanOfficer, r.attendD ? fmtDate(r.attendD) : '', r.inviteD ? fmtDate(r.inviteD) : '', r.nppm ? 'Yes' : '', r.leadCount > 0 ? r.leadCount : '', r.firstLeadDate ? fmtDate(r.firstLeadDate) : ''];
   const meetHead = '<tr>' + meetCols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
 
   const invitesSorted = [...mainInvites.invitesList].sort((a, b) => {
@@ -1637,7 +1694,7 @@ export function renderPerformance() {
         '<div class="perf-card-body">' +
           '<div class="perf-card-left">' +
             valBtn('mainLeads', mainLeads.count) +
-            '<div class="perf-kpi-sub">' + mainLeads.uniqueRealtors + ' unique realtor' + (mainLeads.uniqueRealtors !== 1 ? 's' : '') + '</div>' +
+            '<div class="perf-kpi-sub"><button class="perf-cmp-clickable kpi-clickable" style="font:inherit;font-weight:700;color:#334466;background:none;border:none;cursor:pointer;padding:0" data-perf-modal="leadRealtors" title="Click to view detailed breakdown">' + mainLeads.uniqueRealtors + '</button> unique realtor' + (mainLeads.uniqueRealtors !== 1 ? 's' : '') + '</div>' +
             trendBadge(mainLeads.count, cmpLeads ? cmpLeads.count : null) +
           '</div>' +
           '<div class="perf-card-right">' + leadsBreakdownHtml + convRateHtml + '</div>' +
