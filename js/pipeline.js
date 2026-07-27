@@ -497,19 +497,56 @@ export function renderClosedWon() {
     ).join('');
 
   const summaryHtml =
+    '<style>.pipeline-summary-table{font-size:11px;max-width:600px;border-collapse:collapse}' +
+    '.pipeline-summary-table th{font-size:10px;padding:6px 10px;font-family:\'Barlow\',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;background:#0B192C;color:white}' +
+    '.pipeline-summary-table td{padding:5px 10px;font-size:11px;border-bottom:1px solid #F1F5F9}' +
+    '.pipeline-summary-table tr:last-child td{font-weight:700;background:#F8FAFC}</style>' +
     '<div class="pl-cw-summary">' +
       '<div class="pl-cw-summary-stats">' +
         '<span class="pl-cw-summary-total">Total Closed Won: <strong>' + totalCount + ' closing' + (totalCount !== 1 ? 's' : '') + ' · $' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) + '</strong></span>' +
         (avgDays != null ? '<span class="pl-cw-summary-avg">Avg. days to close: <strong>' + avgDays + 'd</strong></span>' : '') +
       '</div>' +
-      (branchRows ? '<table class="pl-branch-table"><thead><tr><th>Branch</th><th>Closings</th><th>Loan Amount</th></tr></thead><tbody>' + branchRows + '</tbody></table>' : '') +
+      (branchRows ? '<table class="pipeline-summary-table"><thead><tr><th>Branch</th><th>Closings</th><th>Loan Amount</th></tr></thead><tbody>' + branchRows + '</tbody></table>' : '') +
     '</div>';
 
   // Per-owner summary cards (CAMBIO 3 + 4)
   _cwDetailCache.clear();
+  _cwDetailCache.set('ALL', filtered);
   let grandTotal = 0, grandCount = 0;
 
-  const cardsHtml = '<div class="pipeline-owners-grid">' + [...byOwner.keys()].sort().map(owner => {
+  // Tarjeta consolidada "ALL BDs" (mismo estilo que Open Pipeline)
+  let allActive = 0, allInactive = 0;
+  for (const key of allRealtorKeysCW) {
+    const st = (realtorCacheCW.get(key) || {}).status || 'unknown';
+    if (st === 'active') allActive++;
+    else if (st === 'inactive') allInactive++;
+  }
+  const allBranchBreakdown = [...branchMap.entries()]
+    .sort((a, b) => b[1].amt - a[1].amt)
+    .filter(([, v]) => v.count > 0)
+    .map(([name, v]) => '<div class="perf-leads-breakdown-row"><span class="plb-label">' + name + '</span><span class="plb-count">' + v.count + '</span></div>')
+    .join('');
+  const allBdsCard =
+    '<div class="pl-owner-card all-bds">' +
+      '<div class="pl-allbds-header">' +
+        '<div>' +
+          '<div class="pl-allbds-title">ALL BDs</div>' +
+          '<div class="pl-allbds-sub">' + byOwner.size + ' Business Developer' + (byOwner.size !== 1 ? 's' : '') + '</div>' +
+        '</div>' +
+        '<div class="pl-allbds-right">' +
+          '<div class="pl-allbds-amt">' + (totalAmt ? '$' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '$0') + '</div>' +
+          '<div class="pl-allbds-sub"><span class="clickable-num" style="cursor:pointer;text-decoration:underline" data-cw-detail-owner="ALL" title="View all closings">' + totalCount + ' closing' + (totalCount !== 1 ? 's' : '') + '</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="pl-allbds-stats">' +
+        '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#1D9E75">' + allActive + '</div><div class="pl-allbds-stat-label">Active</div></div>' +
+        '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#E65100">' + allInactive + '</div><div class="pl-allbds-stat-label">Inactive</div></div>' +
+        '<div class="pl-allbds-stat"><div class="pl-allbds-stat-num" style="color:#1565C0">' + allRealtorKeysCW.length + '</div><div class="pl-allbds-stat-label">Realtors</div></div>' +
+      '</div>' +
+      '<div class="perf-leads-breakdown" style="padding:6px 12px 12px">' + allBranchBreakdown + '</div>' +
+    '</div>';
+
+  const cardsHtml = '<div class="pipeline-owners-grid">' + allBdsCard + [...byOwner.keys()].sort().map(owner => {
     const opps = byOwner.get(owner);
     _cwDetailCache.set(owner, opps);
 
@@ -670,7 +707,7 @@ export function showClosedWonDetail(owner) {
   ];
 
   openModal(
-    owner + ' — Closed Won',
+    (owner === 'ALL' ? 'ALL BDs' : owner) + ' — Closed Won',
     enriched.length + ' closing' + (enriched.length !== 1 ? 's' : '') + ' · Total: ' + totalFmt,
     head, body, csvData
   );

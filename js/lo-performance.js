@@ -64,7 +64,8 @@ function calcLoMeetingInvites(loNames, startDate, endDate) {
       leadCount: leads.length,
       firstLeadDate: leadDates[0] || null,
       lastLeadDate: leadDates[leadDates.length - 1] || null,
-      hasLeadAfterMeeting: attendD ? leadDates.some(d => d > attendD) : false
+      hasLeadAfterMeeting: attendD ? leadDates.some(d => d >= attendD) : false,
+      leadsAfterMeeting: attendD ? leadDates.filter(d => d >= attendD).length : 0
     });
   }
   const invitesList = recs.filter(r => inRange(r.inviteD));
@@ -72,7 +73,7 @@ function calcLoMeetingInvites(loNames, startDate, endDate) {
   const invitesSent = invitesList.length;
   const meetingAttended = attendedList.length;
   const nppmCount = attendedList.filter(r => r.nppm).length;
-  const leadsReferred = attendedList.reduce((s, r) => s + r.leadCount, 0);
+  const leadsReferred = attendedList.reduce((s, r) => s + r.leadsAfterMeeting, 0);
   const realtorsWithLeads = attendedList.filter(r => r.hasLeadAfterMeeting).length;
   const conversionRate = meetingAttended > 0 ? (realtorsWithLeads / meetingAttended * 100).toFixed(1) : '0.0';
   return { invitesSent, meetingAttended, nppmCount, leadsReferred, realtorsWithLeads, conversionRate, invitesList, attendedList };
@@ -677,28 +678,11 @@ export function renderLoPerformance() {
   const invitesSorted = [...mainMtg.invitesList].sort((a, b) => { const aa = a.attendD ? 1 : 0, ba = b.attendD ? 1 : 0; if (ba !== aa) return ba - aa; return (b.inviteD || 0) - (a.inviteD || 0); });
   const attendedSorted = [...mainMtg.attendedList].sort((a, b) => { if (b.leadCount !== a.leadCount) return b.leadCount - a.leadCount; return (b.attendD || 0) - (a.attendD || 0); });
   const nppmList = attendedSorted.filter(r => r.nppm);
-  // ── DIAGNÓSTICO temporal: por qué el modal de leads referred sale vacío ──
-  console.log('[leads modal] attendedList:', mainMtg.attendedList?.length);
-  if (mainMtg.attendedList?.length > 0) {
-    const first = mainMtg.attendedList[0];
-    console.log('[leads modal] first realtor key:', first.key);
-    console.log('[leads modal] first attendedDate:', first.attendD);
-    console.log('[leads modal] rec.leads (getField, by Referred By):', first.leads.length);
-    const allLeads = (state.leadsData || []).filter(r => norm(String(r['Referred By'] || r['referred_by'] || r['referred by'] || '')) === first.key);
-    console.log('[leads modal] total leads for realtor (direct access):', allLeads.length);
-    const afterMeeting = allLeads.filter(r => {
-      const d = parseDate(r['Created Date'] || r['create_date'] || r['Create Date'] || '');
-      return d && first.attendD && d > first.attendD;
-    });
-    console.log('[leads modal] leads after meeting:', afterMeeting.length);
-    console.log('[leads modal] sample lead fields:', allLeads[0] ? Object.keys(allLeads[0]) : 'none');
-  }
-
   const meetLeadRows = [];
   for (const r of mainMtg.attendedList) {
     for (const lr of r.leads) {
       const created = parseDate(getField(lr, 'Created Date', 'created date', 'Create Date', 'create date'));
-      if (!(r.attendD && created && created > r.attendD)) continue;
+      if (!(r.attendD && created && created >= r.attendD)) continue;
       meetLeadRows.push({
         realtor: r.name, owner: r.owner, attendD: r.attendD,
         leadName: (String(getField(lr, 'First Name', 'first name') || '').trim() + ' ' + String(getField(lr, 'Last Name', 'last name') || '').trim()).trim() || '—',
@@ -1352,13 +1336,13 @@ export function renderLoPerformance() {
     '<div class="perf-owner-heading">' + lo + '</div>' +
 
     '<div class="perf-section-label">01 &mdash; Pipeline &amp; Inputs</div>' +
-    '<div class="perf-grid-split">' +
+    '<div class="perf-grid-2">' +
       oppCreatedCardHtml +
       openPipeCardHtml +
     '</div>' +
 
     '<div class="perf-section-label">02 &mdash; LO Activity</div>' +
-    '<div class="perf-grid-split">' +
+    '<div class="perf-grid-2">' +
 
     // Card 1: Meetings Attended (realtorOwnerMap funnel)
     '<div class="perf-kpi-card">' +
@@ -1403,7 +1387,7 @@ export function renderLoPerformance() {
     '</div>' +
 
     '<div class="perf-section-label">03 &mdash; Results &amp; Closings</div>' +
-    '<div class="perf-grid-split">' +
+    '<div class="perf-grid-2">' +
       closingsCardHtml +
       lostCardHtml +
     '</div>';
