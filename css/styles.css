@@ -197,6 +197,8 @@ thead tr:hover th{background:#0B192C !important;}
 .modal-title{font-family:"Barlow",sans-serif;font-weight:700;font-size:14px;color:white;flex:1}
 .modal-sub{font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px}
 .modal-close{background:rgba(255,255,255,0.15);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.modal-back-btn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid rgba(255,255,255,0.3);color:white;font-size:12px;font-weight:600;padding:4px 12px;border-radius:8px;cursor:pointer;margin-right:12px;transition:background 0.15s;flex-shrink:0}
+.modal-back-btn:hover{background:rgba(255,255,255,0.15)}
 .modal-close:hover{background:rgba(255,255,255,0.3)}
 .modal-csv-btn{background:rgba(255,255,255,0.15);border:none;color:white;height:28px;padding:0 10px;border-radius:7px;cursor:pointer;font-size:10px;font-family:'Barlow',sans-serif;font-weight:700;letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;gap:5px;flex-shrink:0;margin-right:6px}
 .modal-csv-btn:hover{background:rgba(255,255,255,0.3)}

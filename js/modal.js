@@ -2,7 +2,53 @@ import { state } from './state.js';
 import { fmtDate, parseDate, getField, norm } from './utils.js';
 import { dl } from './export.js';
 
+// ── Navegación interna del modal (drill-down con "← Back") ──
+const _modalStack = [];
+const _mTitle = () => document.getElementById('modal-title');
+const _mSub = () => document.getElementById('modal-sub');
+const _mBody = () => document.querySelector('#detail-modal .modal-body');
+const _mHeader = () => document.querySelector('#detail-modal .modal-header');
+
+function _setModalContent({ title, subtitle, content }) {
+  const t = _mTitle(), s = _mSub(), b = _mBody();
+  if (t) t.textContent = title || '';
+  if (s) s.textContent = subtitle || '';
+  if (b) b.innerHTML = content || '';
+}
+function _showBackButton() {
+  let btn = document.getElementById('modal-back-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'modal-back-btn';
+    btn.className = 'modal-back-btn';
+    btn.innerHTML = '&#8592; Back';
+    btn.onclick = popModalView;
+    const header = _mHeader();
+    if (header) header.prepend(btn);
+  }
+  btn.style.display = 'inline-flex';
+}
+function _hideBackButton() {
+  const btn = document.getElementById('modal-back-btn');
+  if (btn) btn.style.display = 'none';
+}
+export function pushModalView({ title, subtitle, content }) {
+  _modalStack.push({ title: _mTitle()?.textContent, subtitle: _mSub()?.textContent, content: _mBody()?.innerHTML });
+  _showBackButton();
+  _setModalContent({ title, subtitle, content });
+}
+export function popModalView() {
+  if (_modalStack.length === 0) return;
+  _setModalContent(_modalStack.pop());
+  if (_modalStack.length === 0) _hideBackButton();
+}
+export function clearModalStack() {
+  _modalStack.length = 0;
+  _hideBackButton();
+}
+
 export function openModal(title, sub, headHtml, bodyHtml, csvData) {
+  clearModalStack();
   document.getElementById('modal-title').textContent = title;
   document.getElementById('modal-sub').textContent = sub;
   const modalBody = document.querySelector('#detail-modal .modal-body');
@@ -29,8 +75,10 @@ export function openModal(title, sub, headHtml, bodyHtml, csvData) {
 }
 
 export function closeModal(e) {
-  if (e.target === document.getElementById('detail-modal'))
+  if (e.target === document.getElementById('detail-modal')) {
     document.getElementById('detail-modal').classList.add('hidden');
+    clearModalStack();
+  }
 }
 
 export function showScorecardDetail(owner, med) {

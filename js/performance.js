@@ -1,12 +1,20 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField } from './utils.js';
 import { sbFetch } from './supabase.js';
-import { openModal } from './modal.js';
+import { openModal, pushModalView } from './modal.js';
 import { findRealtorMatch } from './meetings-review.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
 export const kpiGoals = { loanAmount: 700000, pipelineOpps: 10, loanCountGoal: 2 };
 const _healthCachePerf = new Map();
+const _perfDrill = new Map();
+// Delegación: celdas con data-drill-perf abren un drill-down dentro del modal (← Back)
+document.addEventListener('click', e => {
+  const cell = e.target.closest('[data-drill-perf]');
+  if (!cell || !cell.closest('#detail-modal')) return;
+  const d = _perfDrill.get(cell.getAttribute('data-drill-perf'));
+  if (d) pushModalView({ title: d.title, subtitle: d.subtitle, content: d.build() });
+});
 
 export async function loadKpiSettings() {
   try {
@@ -1327,7 +1335,7 @@ export function renderPerformance() {
     } else {
       const key = norm(ref);
       r = oppRealtorMap.get(key);
-      if (!r) { r = { name: ref, total: 0, cats: {}, loMap: new Map() }; oppStageOrder.forEach(k => r.cats[k] = 0); oppRealtorMap.set(key, r); }
+      if (!r) { r = { name: ref, key, total: 0, cats: {}, loMap: new Map() }; oppStageOrder.forEach(k => r.cats[k] = 0); oppRealtorMap.set(key, r); }
     }
     r.total++;
     r.cats[cat]++;
@@ -1364,6 +1372,40 @@ export function renderPerformance() {
     if (!s.length) return '—';
     return s.length > 1 ? s[0][0] + ' (+' + (s.length - 1) + ' more)' : s[0][0];
   };
+  // ─── Drill-down helpers (celda clickeable → tabla filtrada dentro del modal, botón ← Back) ───
+  _perfDrill.clear();
+  const _gf = (row, ...a) => String(getField(row, ...a) || '—').trim();
+  const _amt = row => parseFloat(String(getField(row, 'Loan Amount', 'loan amount') || '').replace(/[$,]/g, '')) || 0;
+  const _fmtAmt = a => a ? '$' + a.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—';
+  const _dcell = v => '<td class="dt">' + fmtDate(parseDate(v)) + '</td>';
+  // 2A — Opportunities B2C: detalle de opps por realtor
+  const drillOppsCreatedTable = rows => {
+    const cols = ['Loan #', 'Opportunity Name', 'Realtor', 'Loan Officer', 'BD Owner', 'Stage', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Disbursement Date', 'Created Date', 'Loan Amount'];
+    const head = '<tr>' + cols.map(c => '<th' + (c === 'Loan Amount' ? ' style="text-align:right"' : '') + '>' + c + '</th>').join('') + '</tr>';
+    const body = rows.map(row => '<tr>' +
+      '<td style="font-family:monospace;font-size:10px;color:#556080">' + _gf(row, 'Loan #', 'loan #') + '</td>' +
+      '<td style="font-weight:600;max-width:170px;overflow:hidden;text-overflow:ellipsis">' + _gf(row, 'Opportunity Name', 'opportunity name') + '</td>' +
+      '<td>' + _gf(row, 'Referred By', 'referred by') + '</td>' +
+      '<td style="font-size:11px">' + _gf(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') + '</td>' +
+      '<td style="font-size:11px">' + _gf(row, 'Opportunity Owner', 'opportunity owner') + '</td>' +
+      '<td style="font-size:11px">' + _gf(row, 'Stage', 'stage') + '</td>' +
+      _dcell(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date')) +
+      _dcell(getField(row, 'Ratified Date', 'ratified date', 'ratified_date')) +
+      _dcell(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date')) +
+      _dcell(getField(row, 'Disbursement Date', 'disbursement date')) +
+      _dcell(getField(row, 'Created Date', 'created date', 'Create Date', 'create date')) +
+      '<td class="modal-amount" style="text-align:right">' + _fmtAmt(_amt(row)) + '</td>' +
+    '</tr>').join('');
+    return '<table class="modal-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+  };
+  // Registrar drill por realtor (2A)
+  for (const r of oppRealtorRows) {
+    _perfDrill.set('oppReal:' + r.key, {
+      title: r.name + ' — Opportunities Detail',
+      subtitle: r.total + ' opportunit' + (r.total !== 1 ? 'ies' : 'y'),
+      build: () => drillOppsCreatedTable(oppCreatedRows.filter(row => norm(String(getField(row, 'Referred By', 'referred by') || '')) === r.key))
+    });
+  }
   const oppModalRows = oppUnknown ? [...oppRealtorRows, oppUnknown] : oppRealtorRows;
   const oppRealtorHead = '<tr><th>Realtor</th><th>Loan Officer</th><th style="text-align:center">Total</th>' +
     oppStageCols.map(c => '<th style="text-align:center">' + c + '</th>').join('') +
@@ -1374,7 +1416,7 @@ export function renderPerformance() {
     return '<tr' + (r.unknown ? ' style="background:#FFFBE6"' : '') + '>' +
       '<td style="font-weight:600' + (r.unknown ? ';color:#B45309' : '') + '">' + r.name + '</td>' +
       '<td style="font-size:11px">' + loDisplay(r.loMap) + '</td>' +
-      '<td style="text-align:center;font-weight:700">' + r.total + '</td>' +
+      '<td style="text-align:center;font-weight:700' + (r.key ? ';cursor:pointer;text-decoration:underline;color:#1D4ED8' : '') + '"' + (r.key ? ' data-drill-perf="oppReal:' + r.key + '"' : '') + '>' + r.total + '</td>' +
       oppStageCols.map(c => '<td style="text-align:center">' + r.cats[c] + '</td>').join('') +
       '<td style="text-align:center">' + pot.toFixed(1) + '%</td>' +
       '<td style="text-align:center;font-weight:700;color:' + lostColorOf(rl) + '">' + rl.toFixed(1) + '%</td>' +
@@ -1413,6 +1455,34 @@ export function renderPerformance() {
   const pipeInactiveSet = new Set((state.inactiveResults || []).map(r => r.key));
   const pipeStageCols = ['Need Analysis', 'Qualification', 'Proposal', 'Negotiation'];
   const emptyStageObj = () => ({ 'Need Analysis': 0, 'Qualification': 0, 'Proposal': 0, 'Negotiation': 0 });
+  // Drill-down de Open Pipeline B2C (2B loan officers / 2C realtors): tabla de opps abiertas
+  const pipeStatusOf = ref => {
+    const k = norm(String(ref || ''));
+    return pipeActiveSet.has(k)
+      ? '<span style="font-weight:700;font-size:11px;color:#085041">Active</span>'
+      : pipeInactiveSet.has(k)
+        ? '<span style="font-weight:700;font-size:11px;color:#B45309">Inactive</span>'
+        : '<span style="font-weight:700;font-size:11px;color:#8899BB">Unknown</span>';
+  };
+  const drillOpenPipeTable = rows => {
+    const cols = ['Loan #', 'Realtor', 'Realtor Status', 'Branch', 'BD Owner', 'Stage', 'Health Status', 'Created Date', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Loan Amount'];
+    const head = '<tr>' + cols.map(c => '<th' + (c === 'Loan Amount' ? ' style="text-align:right"' : '') + '>' + c + '</th>').join('') + '</tr>';
+    const body = rows.map(row => '<tr>' +
+      '<td style="font-family:monospace;font-size:10px;color:#556080">' + _gf(row, 'Loan #', 'loan #') + '</td>' +
+      '<td style="font-weight:600">' + _gf(row, 'Referred By', 'referred by') + '</td>' +
+      '<td>' + pipeStatusOf(getField(row, 'Referred By', 'referred by')) + '</td>' +
+      '<td style="font-size:11px">' + _gf(row, 'Branch', 'branch') + '</td>' +
+      '<td style="font-size:11px">' + _gf(row, 'Opportunity Owner', 'opportunity owner') + '</td>' +
+      '<td style="font-size:11px">' + _gf(row, 'Stage', 'stage') + '</td>' +
+      '<td>' + healthChipHtml(getField(row, 'Healthiness', 'healthiness')) + '</td>' +
+      _dcell(getField(row, 'Created Date', 'created date', 'Create Date', 'create date')) +
+      _dcell(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date')) +
+      _dcell(getField(row, 'Ratified Date', 'ratified date', 'ratified_date')) +
+      _dcell(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date')) +
+      '<td class="modal-amount" style="text-align:right">' + _fmtAmt(_amt(row)) + '</td>' +
+    '</tr>').join('');
+    return '<table class="modal-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+  };
 
   const pipeRealtorMap = new Map();
   const pipeLoMap = new Map();
@@ -1435,6 +1505,26 @@ export function renderPerformance() {
     g.total++;
     if (cat) g.cats[cat]++;
     if (ref) g.realtorKeys.add(norm(ref));
+  }
+
+  // Registrar drill por realtor (2C) y por loan officer (2B) en la caché de drill-down
+  for (const r of pipeRealtorMap.values()) {
+    _perfDrill.set('pipeReal:' + r.key, {
+      title: r.name + ' — Open Pipeline Detail',
+      subtitle: r.total + ' open opportunit' + (r.total !== 1 ? 'ies' : 'y'),
+      build: () => drillOpenPipeTable(openAllRows.filter(row => norm(String(getField(row, 'Referred By', 'referred by') || '')) === r.key))
+    });
+  }
+  const _loDrillId = g => g.noLo ? 'noLo' : norm(g.name);
+  for (const g of [...pipeLoMap.values(), ...(pipeNoLo ? [pipeNoLo] : [])]) {
+    _perfDrill.set('pipeLo:' + _loDrillId(g), {
+      title: g.name + ' — Open Pipeline Detail',
+      subtitle: g.total + ' open opportunit' + (g.total !== 1 ? 'ies' : 'y'),
+      build: () => drillOpenPipeTable(openAllRows.filter(row => {
+        const l = String(getField(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') || '').trim();
+        return g.noLo ? !l : norm(l) === norm(g.name);
+      }))
+    });
   }
 
   const lastLeadByKey = new Map();
@@ -1466,7 +1556,7 @@ export function renderPerformance() {
         '<td style="font-weight:600">' + r.name + '</td>' +
         '<td style="text-align:center;font-weight:700;color:' + pipeDaysColor(days) + '">' + (days == null ? '—' : days + ' days ago') + '</td>' +
         '<td style="font-size:11px">' + loDisplay(r.loMap) + '</td>' +
-        '<td style="text-align:center;font-weight:700">' + r.total + '</td>' +
+        '<td style="text-align:center;font-weight:700;cursor:pointer;text-decoration:underline;color:#1D4ED8" data-drill-perf="pipeReal:' + r.key + '">' + r.total + '</td>' +
         pipeStageCols.map(c => '<td style="text-align:center">' + (r.cats[c] || '—') + '</td>').join('') +
       '</tr>';
     }).join('');
@@ -1506,7 +1596,7 @@ export function renderPerformance() {
     return '<tr' + (g.noLo ? ' style="background:#FFFBE6"' : '') + '>' +
       '<td style="font-weight:600' + (g.noLo ? ';color:#B45309' : '') + '">' + g.name + '</td>' +
       '<td style="text-align:center">' + fmtActInact(activeR, inactiveR) + '</td>' +
-      '<td style="text-align:center;font-weight:700">' + g.total + '</td>' +
+      '<td style="text-align:center;font-weight:700;cursor:pointer;text-decoration:underline;color:#1D4ED8" data-drill-perf="pipeLo:' + _loDrillId(g) + '">' + g.total + '</td>' +
       pipeStageCols.map(c => '<td style="text-align:center">' + (g.cats[c] || '—') + '</td>').join('') +
       '<td style="text-align:center">' + pot.toFixed(1) + '%</td>' +
     '</tr>';
