@@ -38,7 +38,7 @@ export async function uploadToSupabase(type, data, fileName, { onProgress = () =
   onProgress(type, 30);
   const rows = data.map(row => {
     if (type === 'leads') return {
-      referred_by: getField(row, 'Referred By', 'referred by') || null,
+      referred_by: String(getField(row, 'Referred By', 'referred by', 'referred_by') || '').trim() || 'Unknown',
       lead_owner: String(getField(row, 'Lead Owner', 'lead owner', 'owner') || '').trim() || null,
       branch: String(getField(row, 'Branch', 'branch') || '').trim() || null,
       create_date: fmtDB(parseDate(getField(row, 'Created Date', 'Create Date', 'created date', 'create date'))),
@@ -48,7 +48,7 @@ export async function uploadToSupabase(type, data, fileName, { onProgress = () =
       converted: (() => { const v = getField(row, 'Converted', 'converted'); return v === true || String(v || '').trim().toLowerCase() === 'true'; })()
     };
     return {
-      referred_by: getField(row, 'Referred By', 'referred by') || null,
+      referred_by: String(getField(row, 'Referred By', 'referred by', 'referred_by') || '').trim() || 'Unknown',
       stage: String(getField(row, 'Stage', 'stage') || '').trim() || null,
       current_status: String(getField(row, 'Current Status', 'current status', 'current_status') || '').trim() || null,
       current_milestone: String(getField(row, 'Current Milestone', 'current milestone') || '').trim() || null,
