@@ -1,10 +1,12 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, initials, normalizeLO } from './utils.js';
-import { openModal } from './modal.js';
+import { openModal, pushModalView } from './modal.js';
 import { dl } from './export.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
 const _healthCacheLoP = new Map();
+// Drill-down de Pipeline LO: Realtor clickeable → todas sus opps con este LO (← Back)
+const _loPipeDrill = new Map();
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const _loCwDetailCache = new Map();
 
@@ -243,6 +245,7 @@ function showLoPipelineStageDetail(lo, stage) {
     return !String(getField(row, 'Lender', 'lender') || '').trim().toLowerCase().includes('city lending inc');
   });
   if (!rows.length) return;
+  _loPipeDrill.clear();
   const realtorKeys = [...new Set(rows.map(row => { const ref = getField(row, 'Referred By', 'referred by'); return ref ? norm(String(ref)) : null; }).filter(Boolean))];
   const cache = buildRealtorCacheLo(realtorKeys, inactiveCutoff);
   const enriched = rows.map(row => {
@@ -262,9 +265,49 @@ function showLoPipelineStageDetail(lo, stage) {
     const amt = getField(row, 'Loan Amount', 'loan amount');
     const amtFmt = amt ? '$' + Number(amt).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—';
     const daysOpen = oppCd ? Math.floor((today - oppCd) / 86400000) : null;
-    return { row, realtorName, status: cached.status, daysSince: cached.daysSince, lnNum, oppName, branch, currentMilestone, loanStatus, oppCd, daysOpen, preApprovalDate, ratifiedDate, estClosingDate, amt, amtFmt };
+    return { row, realtorKey, realtorName, status: cached.status, daysSince: cached.daysSince, lnNum, oppName, branch, currentMilestone, loanStatus, oppCd, daysOpen, preApprovalDate, ratifiedDate, estClosingDate, amt, amtFmt };
   });
   enriched.sort((a, b) => ({ inactive: 0, active: 1, unknown: 2 }[a.status] ?? 2) - ({ inactive: 0, active: 1, unknown: 2 }[b.status] ?? 2));
+
+  // Drill-down: Realtor Name → todas sus opps con este LO (Loan Officers = este LO)
+  const loScopeMatch = row => isAll ? allowedLOsForAll.some(l => matchLo(row, l)) : matchLo(row, lo);
+  const _dg = (row, ...a) => String(getField(row, ...a) || '—').trim();
+  const drillLoRealtorTable = drows => {
+    const cols = ['Loan #', 'Stage', 'Health Status', 'Branch', 'BD Owner', 'Created Date', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Loan Amount'];
+    const head = '<tr>' + cols.map(c => '<th' + (c === 'Loan Amount' ? ' style="text-align:right"' : '') + '>' + c + '</th>').join('') + '</tr>';
+    const body = drows.map(row => {
+      const amt = getField(row, 'Loan Amount', 'loan amount');
+      return '<tr>' +
+        '<td style="font-family:monospace;font-size:10px;color:#556080">' + _dg(row, 'Loan #', 'loan #') + '</td>' +
+        '<td style="font-size:11px">' + _dg(row, 'Stage', 'stage') + '</td>' +
+        '<td>' + healthChipHtml(getField(row, 'Healthiness', 'healthiness')) + '</td>' +
+        '<td style="font-size:11px">' + _dg(row, 'Branch', 'branch') + '</td>' +
+        '<td style="font-size:11px">' + _dg(row, 'Opportunity Owner', 'opportunity owner') + '</td>' +
+        '<td class="dt">' + fmtDate(parseDate(getField(row, 'Created Date', 'created date', 'create date'))) + '</td>' +
+        '<td class="dt">' + fmtDate(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date'))) + '</td>' +
+        '<td class="dt">' + fmtDate(parseDate(getField(row, 'Ratified Date', 'ratified date'))) + '</td>' +
+        '<td class="dt">' + fmtDate(parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'Close Date', 'close date'))) + '</td>' +
+        '<td class="modal-amount" style="text-align:right">' + (amt ? '$' + Number(amt).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—') + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<table class="modal-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+  };
+  const _loPipeSeen = new Set();
+  for (const e of enriched) {
+    if (!e.realtorKey || _loPipeSeen.has(e.realtorKey)) continue;
+    _loPipeSeen.add(e.realtorKey);
+    const rrows = (state.oppData || []).filter(row => {
+      if (String(getField(row, 'Lender', 'lender') || '').trim().toLowerCase().includes('city lending inc')) return false;
+      const ref = getField(row, 'Referred By', 'referred by');
+      if (!ref || norm(String(ref)) !== e.realtorKey) return false;
+      return loScopeMatch(row);
+    });
+    _loPipeDrill.set('loPlReal:' + e.realtorKey, {
+      title: e.realtorName + ' — All Opportunities (LO)',
+      subtitle: rrows.length + ' opportunit' + (rrows.length !== 1 ? 'ies' : 'y'),
+      build: () => drillLoRealtorTable(rrows)
+    });
+  }
   const totalAmt = enriched.reduce((s, e) => { const a = parseFloat(getField(e.row, 'Loan Amount', 'loan amount') || 0); return s + (isNaN(a) ? 0 : a); }, 0);
   const head = '<tr>' +
       '<th colspan="3" style="background:#1D6FA4;color:white;text-align:center">Realtor</th>' +
@@ -274,7 +317,7 @@ function showLoPipelineStageDetail(lo, stage) {
   const body = enriched.map(e => {
     const daysColor = e.daysSince == null ? '#8899BB' : e.daysSince > 90 ? '#A32D2D' : e.daysSince > 45 ? '#856400' : '#085041';
     return '<tr>' +
-      '<td>' + e.realtorName + '</td>' +
+      '<td' + (e.realtorKey ? ' style="cursor:pointer;text-decoration:underline;color:#1D4ED8" data-lo-drill-pipe="loPlReal:' + e.realtorKey + '"' : '') + '>' + e.realtorName + '</td>' +
       '<td>' + statusChipHtml(e.status) + '</td>' +
       '<td style="text-align:center;font-weight:700;color:' + daysColor + '">' + (e.daysSince != null ? e.daysSince + 'd' : '—') + '</td>' +
       '<td style="font-family:monospace;font-size:10px;color:#556080">' + e.lnNum + '</td>' +
@@ -417,6 +460,14 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-lo-pl-lo][data-lo-pl-stage]');
   if (!el) return;
   showLoPipelineStageDetail(el.getAttribute('data-lo-pl-lo'), el.getAttribute('data-lo-pl-stage'));
+});
+
+// Drill-down: Realtor Name en LO Pipeline stage detail → sus opps con este LO (← Back)
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-lo-drill-pipe]');
+  if (!el || !el.closest('#detail-modal')) return;
+  const d = _loPipeDrill.get(el.getAttribute('data-lo-drill-pipe'));
+  if (d) pushModalView({ title: d.title, subtitle: d.subtitle, content: d.build() });
 });
 
 // Healthiness chips → modal de detalle (LO Pipeline)

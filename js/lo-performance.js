@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, normalizeLO } from './utils.js';
-import { openModal } from './modal.js';
+import { openModal, pushModalView } from './modal.js';
 import { kpiGoals } from './performance.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
@@ -348,6 +348,14 @@ function pLabel(year, months0, today, isCompare) {
 
 // Modal builders
 const _loPerfModalCache = new Map();
+const _loPerfDrill = new Map();
+// Delegación: celdas con data-lo-drill-perf abren un drill-down dentro del modal (← Back)
+document.addEventListener('click', e => {
+  const cell = e.target.closest('[data-lo-drill-perf]');
+  if (!cell || !cell.closest('#detail-modal')) return;
+  const d = _loPerfDrill.get(cell.getAttribute('data-lo-drill-perf'));
+  if (d) pushModalView({ title: d.title, subtitle: d.subtitle, content: d.build() });
+});
 
 function buildLoLoanModal(loNames, lo, start, end, label) {
   const rows = (state.oppData || []).filter(row => {
@@ -699,6 +707,7 @@ export function renderLoPerformance() {
   const meetLeadCols = ['Realtor', 'BD Owner', 'Meeting Attended Date', 'Lead Name', 'Lead Status', 'Created Date', 'Converted'];
 
   _loPerfModalCache.clear();
+  _loPerfDrill.clear();
   _loPerfModalCache.set('meetingInvites', { title: lo + ' — Meeting Invites Sent', sub: mainMtg.invitesSent + ' realtor' + (mainMtg.invitesSent !== 1 ? 's' : '') + ' · ' + mainLbl, head: meetHead, body: invitesSorted.map(meetRowHtml).join(''), csvData: [meetCols, ...invitesSorted.map(meetCsvRow)] });
   _loPerfModalCache.set('meetingAttended', { title: lo + ' — Meetings Attended', sub: mainMtg.meetingAttended + ' realtor' + (mainMtg.meetingAttended !== 1 ? 's' : '') + ' · ' + mainLbl, head: meetHead, body: attendedSorted.map(meetRowHtml).join(''), csvData: [meetCols, ...attendedSorted.map(meetCsvRow)] });
   _loPerfModalCache.set('meetingNPPM', { title: lo + ' — NPPM Realtors', sub: nppmList.length + ' realtor' + (nppmList.length !== 1 ? 's' : '') + ' · ' + mainLbl, head: meetHead, body: nppmList.map(meetRowHtml).join(''), csvData: [meetCols, ...nppmList.map(meetCsvRow)] });
@@ -790,6 +799,54 @@ export function renderLoPerformance() {
   };
   const openDaysColor = d => d == null ? '#8899BB' : d < 30 ? '#085041' : d <= 60 ? '#B45309' : '#BE123C';
 
+  // ─── Drill-down helpers (celda clickeable → tabla filtrada dentro del modal, botón ← Back) ───
+  const _loGf = (row, ...a) => String(getField(row, ...a) || '—').trim();
+  const _loAmt = row => parseFloat(String(getField(row, 'Loan Amount', 'loan amount') || '').replace(/[$,]/g, '')) || 0;
+  const _loFmtAmt = a => a ? '$' + a.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—';
+  const _loDcell = v => '<td class="dt">' + fmtDate(parseDate(v)) + '</td>';
+  // A) Opportunities Created LO: detalle de opps de un realtor (con este LO)
+  const drillLoOppsCreatedTable = rows => {
+    const cols = ['Loan #', 'Opportunity Name', 'Realtor', 'BD Owner', 'Stage', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Disbursement Date', 'Created Date', 'Loan Amount'];
+    const head = '<tr>' + cols.map(c => '<th' + (c === 'Loan Amount' ? ' style="text-align:right"' : '') + '>' + c + '</th>').join('') + '</tr>';
+    const body = rows.map(row => '<tr>' +
+      '<td style="font-family:monospace;font-size:10px;color:#556080">' + _loGf(row, 'Loan #', 'loan #') + '</td>' +
+      '<td style="font-weight:600;max-width:170px;overflow:hidden;text-overflow:ellipsis">' + _loGf(row, 'Opportunity Name', 'opportunity name') + '</td>' +
+      '<td>' + _loGf(row, 'Referred By', 'referred by') + '</td>' +
+      '<td style="font-size:11px">' + _loGf(row, 'Opportunity Owner', 'opportunity owner') + '</td>' +
+      '<td style="font-size:11px">' + _loGf(row, 'Stage', 'stage') + '</td>' +
+      _loDcell(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date')) +
+      _loDcell(getField(row, 'Ratified Date', 'ratified date', 'ratified_date')) +
+      _loDcell(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date')) +
+      _loDcell(getField(row, 'Disbursement Date', 'disbursement date')) +
+      _loDcell(getField(row, 'Created Date', 'created date', 'Create Date', 'create date')) +
+      '<td class="modal-amount" style="text-align:right">' + _loFmtAmt(_loAmt(row)) + '</td>' +
+    '</tr>').join('');
+    return '<table class="modal-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+  };
+  // B/C) Open Pipeline LO: detalle de opps abiertas (por BD o por realtor, con este LO)
+  const drillLoOpenPipeTable = rows => {
+    const cols = ['Loan #', 'Realtor', 'Realtor Status', 'Branch', 'BD Owner', 'Stage', 'Health Status', 'Created Date', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Loan Amount'];
+    const head = '<tr>' + cols.map(c => '<th' + (c === 'Loan Amount' ? ' style="text-align:right"' : '') + '>' + c + '</th>').join('') + '</tr>';
+    const body = rows.map(row => {
+      const st = openStatusInfo(norm(String(getField(row, 'Referred By', 'referred by') || '')));
+      return '<tr>' +
+        '<td style="font-family:monospace;font-size:10px;color:#556080">' + _loGf(row, 'Loan #', 'loan #') + '</td>' +
+        '<td style="font-weight:600">' + _loGf(row, 'Referred By', 'referred by') + '</td>' +
+        '<td><span style="font-weight:700;font-size:11px;color:' + st.color + '">' + st.label + '</span></td>' +
+        '<td style="font-size:11px">' + _loGf(row, 'Branch', 'branch') + '</td>' +
+        '<td style="font-size:11px">' + _loGf(row, 'Opportunity Owner', 'opportunity owner') + '</td>' +
+        '<td style="font-size:11px">' + _loGf(row, 'Stage', 'stage') + '</td>' +
+        '<td>' + healthChipHtml(getField(row, 'Healthiness', 'healthiness')) + '</td>' +
+        _loDcell(getField(row, 'Created Date', 'created date', 'Create Date', 'create date')) +
+        _loDcell(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date')) +
+        _loDcell(getField(row, 'Ratified Date', 'ratified date', 'ratified_date')) +
+        _loDcell(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date')) +
+        '<td class="modal-amount" style="text-align:right">' + _loFmtAmt(_loAmt(row)) + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<table class="modal-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+  };
+
   const buildLoOpenDetail = (rows, titleSuffix) => {
     const sorted = [...rows].sort((a, b) =>
       String(getField(a, 'Referred By', 'referred by') || '').localeCompare(String(getField(b, 'Referred By', 'referred by') || '')));
@@ -878,6 +935,26 @@ export function renderLoPerformance() {
   }
   const openBdCount = pipeOwnerMap.size;
 
+  // Registrar drill por realtor (C) y por BD (B) — opps abiertas con este LO
+  for (const r of pipeRealtorMap.values()) {
+    _loPerfDrill.set('loPipeReal:' + r.key, {
+      title: r.name + ' — Open Pipeline Detail',
+      subtitle: r.total + ' open opportunit' + (r.total !== 1 ? 'ies' : 'y') + ' · ' + lo,
+      build: () => drillLoOpenPipeTable(openAllRows.filter(row => norm(String(getField(row, 'Referred By', 'referred by') || '')) === r.key))
+    });
+  }
+  const _loBdDrillId = g => g.noOwner ? 'noOwner' : norm(g.name);
+  for (const g of [...pipeOwnerMap.values(), ...(pipeNoOwner ? [pipeNoOwner] : [])]) {
+    _loPerfDrill.set('loPipeBd:' + _loBdDrillId(g), {
+      title: g.name + ' — Open Pipeline Detail',
+      subtitle: g.total + ' open opportunit' + (g.total !== 1 ? 'ies' : 'y') + ' · ' + lo,
+      build: () => drillLoOpenPipeTable(openAllRows.filter(row => {
+        const bd = String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim();
+        return g.noOwner ? !bd : norm(bd) === norm(g.name);
+      }))
+    });
+  }
+
   const bdOwnerDisplay = ownerMap => {
     const e = [...ownerMap.entries()].sort((a, b) => b[1] - a[1]);
     if (!e.length) return '—';
@@ -893,7 +970,7 @@ export function renderLoPerformance() {
         '<td style="font-weight:600">' + r.name + '</td>' +
         '<td style="text-align:center;font-weight:700;color:' + openDaysColor(days) + '">' + (days == null ? '—' : days + 'd') + '</td>' +
         '<td style="font-size:11px">' + bdOwnerDisplay(r.ownerMap) + '</td>' +
-        '<td style="text-align:center;font-weight:700">' + r.total + '</td>' +
+        '<td style="text-align:center;font-weight:700;cursor:pointer;text-decoration:underline;color:#1D4ED8" data-lo-drill-perf="loPipeReal:' + r.key + '">' + r.total + '</td>' +
         pipeStageCols.map(c => '<td style="text-align:center">' + (r.cats[c] || '—') + '</td>').join('') +
       '</tr>').join('');
     const sumOpps = rows.reduce((s, r) => s + r.total, 0);
@@ -928,7 +1005,7 @@ export function renderLoPerformance() {
     '<tr' + (g.noOwner ? ' style="background:#FFFBE6"' : '') + '>' +
       '<td style="font-weight:600' + (g.noOwner ? ';color:#B45309' : '') + '">' + g.name + '</td>' +
       '<td style="text-align:center">' + fmtActInact(activeR, inactiveR) + '</td>' +
-      '<td style="text-align:center;font-weight:700">' + g.total + '</td>' +
+      '<td style="text-align:center;font-weight:700;cursor:pointer;text-decoration:underline;color:#1D4ED8" data-lo-drill-perf="loPipeBd:' + _loBdDrillId(g) + '">' + g.total + '</td>' +
       pipeStageCols.map(c => '<td style="text-align:center">' + (g.cats[c] || '—') + '</td>').join('') +
       '<td style="text-align:center">' + pot.toFixed(1) + '%</td>' +
     '</tr>').join('');
@@ -1235,7 +1312,7 @@ export function renderLoPerformance() {
     } else {
       const key = norm(ref);
       r = oppcRealtorMap.get(key);
-      if (!r) { r = { name: ref, total: 0, cats: {}, ownerMap: new Map() }; oppcStageOrder.forEach(k => r.cats[k] = 0); oppcRealtorMap.set(key, r); }
+      if (!r) { r = { name: ref, key, total: 0, cats: {}, ownerMap: new Map() }; oppcStageOrder.forEach(k => r.cats[k] = 0); oppcRealtorMap.set(key, r); }
     }
     r.total++; r.cats[cat]++;
     if (bd) r.ownerMap.set(bd, (r.ownerMap.get(bd) || 0) + 1);
@@ -1243,6 +1320,14 @@ export function renderLoPerformance() {
   const oppcTotal = oppCreatedRows.length;
   const oppcRealtorRows = [...oppcRealtorMap.values()].sort((a, b) => b.total - a.total);
   const oppcUniqueRealtors = oppcRealtorRows.length;
+  // Registrar drill por realtor (A) — opps creadas por este realtor con este LO
+  for (const r of oppcRealtorRows) {
+    _loPerfDrill.set('loOppReal:' + r.key, {
+      title: r.name + ' — Opportunities Detail',
+      subtitle: r.total + ' opportunit' + (r.total !== 1 ? 'ies' : 'y') + ' · ' + lo,
+      build: () => drillLoOppsCreatedTable(oppCreatedRows.filter(row => norm(String(getField(row, 'Referred By', 'referred by') || '')) === r.key))
+    });
+  }
   const oppcUnknownCount = oppcUnknown ? oppcUnknown.total : 0;
   const oppcPctLost = oppcTotal ? (oppcStageCounts['Closed Lost'] / oppcTotal * 100) : 0;
   const oppsGoal = kpiGoals.pipelineOpps || 10;
@@ -1274,7 +1359,7 @@ export function renderLoPerformance() {
       return '<tr' + (r.unknown ? ' style="background:#FFFBE6"' : '') + '>' +
         '<td style="font-weight:600' + (r.unknown ? ';color:#B45309' : '') + '">' + r.name + '</td>' +
         '<td style="font-size:11px">' + bdDisplay(r.ownerMap) + '</td>' +
-        '<td style="text-align:center;font-weight:700">' + r.total + '</td>' +
+        '<td style="text-align:center;font-weight:700' + (r.key ? ';cursor:pointer;text-decoration:underline;color:#1D4ED8' : '') + '"' + (r.key ? ' data-lo-drill-perf="loOppReal:' + r.key + '"' : '') + '>' + r.total + '</td>' +
         oppcStageCols.map(c => '<td style="text-align:center">' + r.cats[c] + '</td>').join('') +
         '<td style="text-align:center">' + pot.toFixed(1) + '%</td>' +
         '<td style="text-align:center;font-weight:700;color:' + oppcLostColor(rl) + '">' + rl.toFixed(1) + '%</td>' +
