@@ -417,7 +417,7 @@ async function initApp() {
             const rows = await sbFetch('realtor_owner_map?select=*&limit=' + PAGE + '&offset=' + offset);
             if (!rows || !rows.length) break;
             for (const r of rows) {
-              if (r.realtor_key && r.owner) state.realtorOwnerMap.set(r.realtor_key, { owner: r.owner, name: r.realtor_name, branch: r.branch, loan_officers: r.loan_officers, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date });
+              if (r.realtor_key && r.owner) state.realtorOwnerMap.set(r.realtor_key, { owner: r.owner, name: r.realtor_name, branch: r.branch, loan_officers: r.loan_officers, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date, opportunity_record_type: r.opportunity_record_type, stage: r.stage, created_date: r.created_date });
             }
             if (rows.length < PAGE) break;
             offset += PAGE;

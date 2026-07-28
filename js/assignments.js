@@ -30,11 +30,14 @@ export function loadSfReference(inputEl) {
             nppm: getField(row, 'NPPM', 'nppm') === true || String(getField(row, 'NPPM', 'nppm')).toLowerCase() === 'true',
             last_referral_date: fmtDB(parseDate(getField(row, 'Realtor Last Referral Date', 'realtor last referral date'))) || null,
             branch: String(getField(row, 'Branch', 'branch') || '').trim() || null,
-            loan_officers: String(getField(row, 'Loan Officers', 'loan officers', 'Loan Officer', 'loan officer') || '').trim() || null
+            loan_officers: String(getField(row, 'Loan Officers', 'loan officers', 'Loan Officer', 'loan officer') || '').trim() || null,
+            opportunity_record_type: String(getField(row, 'Opportunity Record Type', 'opportunity record type') || '').trim() || null,
+            stage: String(getField(row, 'Stage', 'stage') || '').trim() || null,
+            created_date: fmtDB(parseDate(getField(row, 'Created Date', 'created date', 'create date'))) || null
           });
         }
       }
-      state.realtorOwnerMap = new Map([...dedupMap.entries()].map(([k, r]) => [k, { owner: r.owner, name: r.realtor_name, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date }]));
+      state.realtorOwnerMap = new Map([...dedupMap.entries()].map(([k, r]) => [k, { owner: r.owner, name: r.realtor_name, branch: r.branch, loan_officers: r.loan_officers, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date, opportunity_record_type: r.opportunity_record_type, stage: r.stage, created_date: r.created_date }]));
       const dbRows = [...dedupMap.values()];
       // Refresh table immediately so SF Suggestion column appears right away
       renderUnassigned();
@@ -284,7 +287,8 @@ export function renderUnassigned() {
   const items = allItems.filter(r => {
     if (searchLc && !r.name.toLowerCase().includes(searchLc)) return false;
     if (sfColVisible && prevSfFilter !== 'all') {
-      const hasSuggestion = state.realtorOwnerMap.has(norm(r.name));
+      const _hs = state.realtorOwnerMap.get(norm(r.name));
+      const hasSuggestion = !!_hs && (typeof _hs !== 'object' || String(_hs.opportunity_record_type || 'Realtor').trim() === 'Realtor');
       if (prevSfFilter === 'with' && !hasSuggestion) return false;
       if (prevSfFilter === 'without' && hasSuggestion) return false;
     }
@@ -323,7 +327,9 @@ export function renderUnassigned() {
     let sfCell = '';
     if (sfColVisible) {
       const _sug = state.realtorOwnerMap.get(norm(r.name));
-      const suggestion = (_sug && typeof _sug === 'object') ? _sug.owner : _sug;
+      const suggestion = (_sug && typeof _sug === 'object')
+        ? (String(_sug.opportunity_record_type || 'Realtor').trim() === 'Realtor' ? _sug.owner : null)
+        : _sug;
       if (!suggestion) {
         sfCell = '<td style="color:#AAB4CC;font-size:11px;text-align:center">—</td>';
       } else if (owners.includes(suggestion)) {

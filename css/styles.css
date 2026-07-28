@@ -350,7 +350,7 @@ thead tr:hover th{background:#0B192C !important;}
 .perf-kpi-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.1)}
 .perf-section-label{font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;color:#0B192C;margin:16px 0 8px;padding-bottom:4px;border-bottom:1.5px solid #E2E8F0}
 .perf-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
-.perf-grid-split{display:grid;grid-template-columns:40fr 60fr;gap:10px;margin-bottom:10px}
+.perf-grid-split{display:grid;grid-template-columns:40fr 60fr;gap:12px;margin-bottom:12px;align-items:stretch}
 .perf-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;align-items:stretch}
 .perf-grid-2 .perf-kpi-card{display:flex;flex-direction:column;box-sizing:border-box}
 .perf-card-top{display:flex;align-items:center;gap:10px;padding-bottom:8px;margin-bottom:8px}

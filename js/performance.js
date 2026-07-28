@@ -341,6 +341,8 @@ function calcMeetingInvites(ownerName, startDate, endDate) {
     const e = (entry && typeof entry === 'object') ? entry : {};
     const owner = (entry && typeof entry === 'object') ? (entry.owner || '') : (entry || '');
     if (norm(owner) !== nOwner) continue;
+    const recordType = String(e.opportunity_record_type || 'Realtor').trim();
+    if (recordType !== 'Realtor') continue;
     const inviteD = parseDate(e.invite_sent_date);
     const attendD = parseDate(e.meeting_attended_date);
     if (!inRange(inviteD) && !inRange(attendD)) continue;
@@ -1151,7 +1153,7 @@ export function renderPerformance() {
     let html = '<table class="perf-lost-table">' + head + '<tbody>' + top + '</tbody></table>';
     if (rest.length) {
       html += '<details style="margin-top:4px">' +
-        '<summary style="cursor:pointer;font-size:11px;color:#1D6FA4;font-weight:600;padding:4px 0">Show all (' + lostRows.length + ' LOs)</summary>' +
+        '<summary style="cursor:pointer;font-size:11px;color:#1D6FA4;font-weight:600;padding:4px 0" onclick="this.style.display=\'none\'">Show all (' + lostRows.length + ' LOs)</summary>' +
         '<table class="perf-lost-table"><tbody>' + rest.map(rowHtml).join('') + '</tbody></table>' +
       '</details>';
     }
@@ -1201,7 +1203,6 @@ export function renderPerformance() {
   const meetBreakdownHtml = '<div class="perf-leads-breakdown">' +
     '<div class="perf-leads-breakdown-row plb-new" style="cursor:pointer" data-perf-modal="meetingInvites" title="Click to view detailed breakdown"><span class="plb-label">Invites Sent</span><span class="plb-count">' + mainInvites.invitesSent + '</span></div>' +
     '<div class="perf-leads-breakdown-row plb-working" style="cursor:pointer" data-perf-modal="meetingAttended" title="Click to view detailed breakdown"><span class="plb-label">Attended <span style="font-size:9px;color:#94A3B8;font-weight:400">(' + invitePct + '% of invites)</span></span><span class="plb-count">' + mainInvites.meetingAttended + '</span></div>' +
-    '<div class="perf-leads-breakdown-row" style="background:#F5F3FF;cursor:pointer" data-perf-modal="meetingNPPM" title="Click to view detailed breakdown"><span class="plb-label">NPPM</span><span class="plb-count">' + mainInvites.nppmCount + '</span></div>' +
     '<div class="perf-leads-breakdown-row plb-converted" style="cursor:pointer" data-perf-modal="meetingLeads" title="Click to view detailed breakdown"><span class="plb-label">Leads Referred</span><span class="plb-count">' + mainInvites.leadsReferred + '</span></div>' +
   '</div>';
   const mcRate = parseFloat(mainInvites.conversionRate);
@@ -1624,7 +1625,7 @@ export function renderPerformance() {
   const closingRest = closingSorted.slice(5);
   const closingBreakdownHtml = closingSorted.length
     ? '<div style="margin-top:8px">' + closingSorted.slice(0, 5).map(closingRowHtml).join('') +
-      (closingRest.length ? '<details style="margin-top:2px"><summary style="cursor:pointer;font-size:10px;color:#1D6FA4;font-weight:600;padding:2px 0">Show more (' + closingRest.length + ')</summary>' + closingRest.map(closingRowHtml).join('') + '</details>' : '') +
+      (closingRest.length ? '<details style="margin-top:2px"><summary style="cursor:pointer;font-size:10px;color:#1D6FA4;font-weight:600;padding:2px 0" onclick="this.style.display=\'none\'">Show more (' + closingRest.length + ')</summary>' + closingRest.map(closingRowHtml).join('') + '</details>' : '') +
       '</div>'
     : '';
 
@@ -1673,6 +1674,139 @@ export function renderPerformance() {
     ]
   });
 
+  // ══ SECCIÓN 04: Mission 20 (LO Outreach + NPPM Realtors) — desde realtorOwnerMap ══
+  const m20StageOrder = ['Need Analysis', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost', 'Others'];
+  const m20StageStyle = {
+    'Need Analysis': { cls: ' plb-new', bg: '' }, 'Qualification': { cls: ' plb-working', bg: '' },
+    'Proposal': { cls: '', bg: '#EFF6FF' }, 'Negotiation': { cls: '', bg: '#F5F3FF' },
+    'Closed Won': { cls: ' plb-converted', bg: '' }, 'Closed Lost': { cls: ' plb-discarded', bg: '' }, 'Others': { cls: ' plb-other', bg: '' }
+  };
+  const m20StageCat = raw => {
+    const s = String(raw || '').toLowerCase();
+    if (s.includes('need analysis') || s.includes('needs analysis')) return 'Need Analysis';
+    if (s.includes('qualification')) return 'Qualification';
+    if (s.includes('proposal')) return 'Proposal';
+    if (s.includes('negotiation')) return 'Negotiation';
+    if (s.includes('closed won')) return 'Closed Won';
+    if (s.includes('closed lost')) return 'Closed Lost';
+    return 'Others';
+  };
+  const m20List = (predicate, s, e) => {
+    const out = [];
+    for (const [key, entry] of (state.realtorOwnerMap || new Map()).entries()) {
+      if (!entry || typeof entry !== 'object') continue;
+      if (norm(entry.owner || '') !== norm(owner)) continue;
+      if (!predicate(entry)) continue;
+      const cd = parseDate(entry.created_date);
+      if (!cd || cd < s || cd > e) continue;
+      out.push({ key, name: entry.name || key, stage: entry.stage || '', branch: entry.branch || '', loanOfficers: entry.loan_officers || '', inviteD: parseDate(entry.invite_sent_date), attendD: parseDate(entry.meeting_attended_date), createdDate: cd });
+    }
+    return out;
+  };
+  const m20LoPred = e => String(e.opportunity_record_type || '').trim() === 'Loan Officer';
+  const m20NppmPred = e => e.nppm === true && String(e.opportunity_record_type || 'Realtor').trim() === 'Realtor';
+  const m20BuildBreakdown = list => {
+    const counts = {}; m20StageOrder.forEach(k => counts[k] = 0);
+    for (const x of list) counts[m20StageCat(x.stage)]++;
+    return '<div class="perf-leads-breakdown">' +
+      m20StageOrder.filter(k => counts[k] > 0).map(k => {
+        const st = m20StageStyle[k];
+        return '<div class="perf-leads-breakdown-row' + st.cls + '"' + (st.bg ? ' style="background:' + st.bg + '"' : '') + '><span class="plb-label">' + k + '</span><span class="plb-count">' + counts[k] + '</span></div>';
+      }).join('') +
+    '</div>';
+  };
+  const m20SubMetrics = list => '<div class="perf-kpi-sub" style="display:flex;gap:8px;flex-wrap:wrap"><span>' + list.filter(x => x.inviteD).length + ' invite sent</span><span>·</span><span>' + list.filter(x => x.attendD).length + ' attended</span></div>';
+  const m20Rank = { 'Need Analysis': 0, 'Qualification': 1, 'Proposal': 2, 'Negotiation': 3, 'Closed Won': 4, 'Closed Lost': 5, 'Others': 6 };
+  const m20Sort = list => [...list].sort((a, b) => { const sa = m20Rank[m20StageCat(a.stage)] ?? 9, sb = m20Rank[m20StageCat(b.stage)] ?? 9; return sa !== sb ? sa - sb : (b.createdDate || 0) - (a.createdDate || 0); });
+  const m20LeadCount = new Map();
+  const m20FirstLead = new Map();
+  for (const lr of (state.leadsData || [])) {
+    const ref = getField(lr, 'Referred By', 'referred by');
+    if (!ref) continue;
+    const k = norm(String(ref));
+    m20LeadCount.set(k, (m20LeadCount.get(k) || 0) + 1);
+    const cd = parseDate(getField(lr, 'Created Date', 'created date', 'Create Date', 'create date'));
+    if (cd) { const cur = m20FirstLead.get(k); if (!cur || cd < cur) m20FirstLead.set(k, cd); }
+  }
+  // Builders compartidos del detalle NPPM (m20Nppm + nppmInvites + nppmAttended)
+  const nppmHead = '<tr><th>Realtor</th><th>Stage</th><th>Branch</th><th>LO Asignado</th><th>Created Date</th><th>Invite Sent</th><th>Meeting Attended</th><th style="text-align:center">Total Leads</th><th>First Lead</th></tr>';
+  const nppmCsvHead = ['Realtor', 'Stage', 'Branch', 'LO Asignado', 'Created Date', 'Invite Sent', 'Meeting Attended', 'Total Leads', 'First Lead'];
+  const nppmRowHtml = x => {
+    const lc = m20LeadCount.get(x.key) || 0;
+    const fl = m20FirstLead.get(x.key);
+    return '<tr><td style="font-weight:600">' + x.name + '</td><td style="font-size:11px">' + (x.stage || '—') + '</td><td style="font-size:11px">' + (x.branch || '—') + '</td><td style="font-size:11px">' + (x.loanOfficers || '—') + '</td><td class="dt">' + fmtDate(x.createdDate) + '</td><td class="dt">' + (x.inviteD ? fmtDate(x.inviteD) : '—') + '</td><td class="dt">' + (x.attendD ? fmtDate(x.attendD) : '—') + '</td><td style="text-align:center">' + (lc > 0 ? '<span style="font-weight:700">' + lc + '</span>' : '<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;background:#FFFBEB;color:#B45309">New</span>') + '</td><td class="dt">' + (fl ? fmtDate(fl) : '—') + '</td></tr>';
+  };
+  const nppmCsvRow = x => { const lc = m20LeadCount.get(x.key) || 0; const fl = m20FirstLead.get(x.key); return [x.name, x.stage || '', x.branch || '', x.loanOfficers || '', fmtDate(x.createdDate), x.inviteD ? fmtDate(x.inviteD) : '', x.attendD ? fmtDate(x.attendD) : '', lc > 0 ? lc : 'New', fl ? fmtDate(fl) : '']; };
+  const m20SubMetricsNppm = list => '<div class="perf-kpi-sub" style="display:flex;gap:8px;flex-wrap:wrap">' +
+    '<span class="kpi-clickable" style="cursor:pointer;font-weight:600" data-perf-modal="nppmInvites" title="Click to view detailed breakdown">' + list.filter(x => x.inviteD).length + ' invite sent</span>' +
+    '<span>·</span>' +
+    '<span class="kpi-clickable" style="cursor:pointer;font-weight:600" data-perf-modal="nppmAttended" title="Click to view detailed breakdown">' + list.filter(x => x.attendD).length + ' attended</span>' +
+  '</div>';
+
+  const loOutMain = m20List(m20LoPred, start, end);
+  const loOutCmp = hasCmp ? m20List(m20LoPred, cmpBounds.start, cmpBounds.end) : null;
+  const loOutSorted = m20Sort(loOutMain);
+  _perfModalCache.set('m20LoOutreach', {
+    title: owner + ' — LO Outreach',
+    sub: loOutMain.length + ' loan officer' + (loOutMain.length !== 1 ? 's' : '') + ' · ' + mainLbl,
+    head: '<tr><th>LO Name</th><th>Stage</th><th>Branch</th><th>Created Date</th><th>Invite Sent</th><th>Meeting Attended</th></tr>',
+    body: loOutSorted.map(x => '<tr><td style="font-weight:600">' + x.name + '</td><td style="font-size:11px">' + (x.stage || '—') + '</td><td style="font-size:11px">' + (x.branch || '—') + '</td><td class="dt">' + fmtDate(x.createdDate) + '</td><td class="dt">' + (x.inviteD ? fmtDate(x.inviteD) : '—') + '</td><td class="dt">' + (x.attendD ? fmtDate(x.attendD) : '—') + '</td></tr>').join(''),
+    csvData: [['LO Name', 'Stage', 'Branch', 'Created Date', 'Invite Sent', 'Meeting Attended'], ...loOutSorted.map(x => [x.name, x.stage || '', x.branch || '', fmtDate(x.createdDate), x.inviteD ? fmtDate(x.inviteD) : '', x.attendD ? fmtDate(x.attendD) : ''])]
+  });
+
+  const nppmMain = m20List(m20NppmPred, start, end);
+  const nppmCmp = hasCmp ? m20List(m20NppmPred, cmpBounds.start, cmpBounds.end) : null;
+  const nppmSorted = m20Sort(nppmMain);
+  _perfModalCache.set('m20Nppm', {
+    title: owner + ' — NPPM Realtors',
+    sub: nppmMain.length + ' realtor' + (nppmMain.length !== 1 ? 's' : '') + ' · ' + mainLbl,
+    head: nppmHead, body: nppmSorted.map(nppmRowHtml).join(''),
+    csvData: [nppmCsvHead, ...nppmSorted.map(nppmCsvRow)]
+  });
+  const nppmInvitesList = nppmMain.filter(x => x.inviteD).sort((a, b) => (b.inviteD || 0) - (a.inviteD || 0));
+  _perfModalCache.set('nppmInvites', {
+    title: owner + ' — NPPM Invites Sent',
+    sub: nppmInvitesList.length + ' realtor' + (nppmInvitesList.length !== 1 ? 's' : '') + ' · ' + mainLbl,
+    head: nppmHead, body: nppmInvitesList.map(nppmRowHtml).join(''),
+    csvData: [nppmCsvHead, ...nppmInvitesList.map(nppmCsvRow)]
+  });
+  const nppmAttendedList = nppmMain.filter(x => x.attendD).sort((a, b) => (b.attendD || 0) - (a.attendD || 0));
+  _perfModalCache.set('nppmAttended', {
+    title: owner + ' — NPPM Meetings Attended',
+    sub: nppmAttendedList.length + ' realtor' + (nppmAttendedList.length !== 1 ? 's' : '') + ' · ' + mainLbl,
+    head: nppmHead, body: nppmAttendedList.map(nppmRowHtml).join(''),
+    csvData: [nppmCsvHead, ...nppmAttendedList.map(nppmCsvRow)]
+  });
+
+  const m20SectionHtml =
+    '<div class="perf-section-label">04 — Mission 20</div>' +
+    '<div class="perf-grid-2">' +
+      '<div class="perf-kpi-card">' +
+        '<div class="perf-card-header-full">' + cardTop('perf-icon-blue', ICON.users, 'LO Outreach') + '</div>' +
+        '<div class="perf-card-body">' +
+          '<div class="perf-card-left">' +
+            '<button class="perf-kpi-value kpi-clickable" style="background:none;border:none;padding:0;cursor:pointer;text-align:left" data-perf-modal="m20LoOutreach" title="Click to view detailed breakdown">' + loOutMain.length + '</button>' +
+            '<div class="perf-kpi-sub">loan officers</div>' +
+            m20SubMetrics(loOutMain) +
+            trendBadge(loOutMain.length, loOutCmp ? loOutCmp.length : null) +
+          '</div>' +
+          '<div class="perf-card-right">' + m20BuildBreakdown(loOutMain) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="perf-kpi-card">' +
+        '<div class="perf-card-header-full">' + cardTop('perf-icon-blue', ICON.target, 'NPPM Realtors') + '</div>' +
+        '<div class="perf-card-body">' +
+          '<div class="perf-card-left">' +
+            '<button class="perf-kpi-value kpi-clickable" style="background:none;border:none;padding:0;cursor:pointer;text-align:left" data-perf-modal="m20Nppm" title="Click to view detailed breakdown">' + nppmMain.length + '</button>' +
+            '<div class="perf-kpi-sub">NPPM realtors</div>' +
+            m20SubMetricsNppm(nppmMain) +
+            trendBadge(nppmMain.length, nppmCmp ? nppmCmp.length : null) +
+          '</div>' +
+          '<div class="perf-card-right">' + m20BuildBreakdown(nppmMain) + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
   content.innerHTML =
     '<div class="perf-banner"><span class="perf-banner-main">Comparing ' + mainRange +
       (hasCmp ? ' vs ' + rangeStr(cmpBounds.start, cmpBounds.end) + ' (full month)' : '') + '</span></div>' +
@@ -1688,7 +1822,7 @@ export function renderPerformance() {
       // Leads Received
       '<div class="perf-kpi-card">' +
         '<div class="perf-card-header-full">' +
-          cardTop('perf-icon-blue', ICON.users, 'Leads Received') +
+          cardTop('perf-icon-blue', ICON.users, 'Leads B2C') +
           '<div class="perf-card-period-label">During selected period</div>' +
         '</div>' +
         '<div class="perf-card-body">' +
@@ -1703,7 +1837,7 @@ export function renderPerformance() {
       // Opportunities Created
       '<div class="perf-kpi-card">' +
         '<div class="perf-card-header-full">' +
-          cardTop('perf-icon-blue', ICON.briefcase, 'Opportunities Created') +
+          cardTop('perf-icon-blue', ICON.briefcase, 'Opportunities B2C') +
           '<div class="perf-card-period-label">During selected period</div>' +
         '</div>' +
         '<div class="perf-card-body">' +
@@ -1719,7 +1853,7 @@ export function renderPerformance() {
       // Open Pipeline (snapshot)
       '<div class="perf-kpi-card">' +
         '<div class="perf-card-header-full">' +
-          cardTop('perf-icon-blue', ICON.trendingUp, 'Open Pipeline') +
+          cardTop('perf-icon-blue', ICON.trendingUp, 'Open Pipeline B2C') +
           '<div class="perf-card-period-label">Current snapshot — all open today</div>' +
         '</div>' +
         '<div class="perf-card-body">' +
@@ -1753,7 +1887,7 @@ export function renderPerformance() {
       // Zoom & Meetings Activity
       '<div class="perf-kpi-card">' +
         '<div class="perf-card-header-full">' +
-          cardTop('perf-icon-green', ICON.calendar, 'Zoom & Meetings Activity') +
+          cardTop('perf-icon-green', ICON.calendar, 'Meetings — Realtors') +
         '</div>' +
         '<div class="perf-card-body">' +
           '<div class="perf-card-left">' +
@@ -1791,8 +1925,8 @@ export function renderPerformance() {
     '</div>' +
 
     // ══ SECTION 3: RESULTS ══
-    '<div class="perf-section-label">03 — Results &amp; Closings</div>' +
-    '<div class="perf-grid-split">' +
+    '<div class="perf-section-label">03 — Results &amp; Closings B2C</div>' +
+    '<div class="perf-grid-2">' +
       // Closings vs Goal
       '<div class="perf-kpi-card">' +
         cardTop('perf-icon-red', ICON.checkCircle, 'Closings vs Goal') +
@@ -1830,7 +1964,8 @@ export function renderPerformance() {
             '<div style="margin-top:10px">' + lostTableHtml() + '</div>'
         ) +
       '</div>' +
-    '</div>';
+    '</div>' +
+    m20SectionHtml;
 }
 
 function populateSelects() {
