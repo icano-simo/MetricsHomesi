@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField } from './utils.js';
 import { sbFetch } from './supabase.js';
 import { openModal, pushModalView } from './modal.js';
+import { renderModalFilters } from './modal-filters.js';
 import { findRealtorMatch } from './meetings-review.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
@@ -72,9 +73,9 @@ export async function saveOwnersList() {
       headers: { 'Prefer': 'return=minimal,resolution=merge-duplicates' },
       body: JSON.stringify([{ key: 'owners_list', text_value: val }])
     });
-    if (statusEl) { statusEl.textContent = '✓ Saved'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+    if (statusEl) { statusEl.textContent = 'Saved'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
   } catch (e) {
-    if (statusEl) statusEl.textContent = '⚠ Error: ' + e.message;
+    if (statusEl) statusEl.textContent = 'Error: ' + e.message;
   }
 }
 
@@ -507,7 +508,9 @@ function buildOppTable(rows, title, sub) {
       realtor: String(getField(row, 'Referred By', 'referred by') || '—').trim(),
       loanOfficer: String(getField(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') || '').trim() || '—',
       stage,
+      branch: String(getField(row, 'Branch', 'branch') || '').trim() || '—',
       health: String(getField(row, 'Healthiness', 'healthiness') || '').trim(),
+      healthiness: String(getField(row, 'Healthiness', 'healthiness') || '').trim(),
       preApproval: parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date', 'Pre-Approval Date', 'pre-approval date')),
       ratified: parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date')),
       estClosing: parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'estimated closing date', 'Estimated Closing Date', 'Close Date', 'close date')),
@@ -518,7 +521,7 @@ function buildOppTable(rows, title, sub) {
   });
   enriched.sort((a, b) => (a.createdDate || 0) - (b.createdDate || 0));
   const head = '<tr><th>Loan #</th><th>Opportunity Name</th><th>Realtor</th><th>Loan Officer</th><th>Stage</th><th>Health Status</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Disbursement Date</th><th>Created Date</th><th>Loan Amount</th></tr>';
-  const body = enriched.map(e =>
+  const renderRow = e =>
     '<tr>' +
     '<td style="font-family:monospace;font-size:10px;color:#556080">' + e.lnNum + '</td>' +
     '<td style="font-weight:600">' + e.oppName + '</td>' +
@@ -532,11 +535,11 @@ function buildOppTable(rows, title, sub) {
     '<td class="dt">' + (e.disbursement ? fmtDate(e.disbursement) : '—') + '</td>' +
     '<td class="dt">' + fmtDate(e.createdDate) + '</td>' +
     '<td class="modal-amount">' + (e.loanAmt ? fmtMoney(e.loanAmt) : '—') + '</td>' +
-    '</tr>'
-  ).join('');
+    '</tr>';
+  const body = enriched.map(renderRow).join('');
   return {
     title, sub,
-    head, body,
+    head, body, rows: enriched, renderRow,
     csvData: [
       ['Loan #', 'Opportunity Name', 'Realtor', 'Loan Officer', 'Stage', 'Health Status', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Disbursement Date', 'Created Date', 'Loan Amount'],
       ...enriched.map(e => [e.lnNum, e.oppName, e.realtor, e.loanOfficer, e.stage, e.health, e.preApproval ? fmtDate(e.preApproval) : '', e.ratified ? fmtDate(e.ratified) : '', e.estClosing ? fmtDate(e.estClosing) : '', e.disbursement ? fmtDate(e.disbursement) : '', fmtDate(e.createdDate), e.loanAmt || ''])
@@ -745,11 +748,12 @@ function buildLeadsModal(rows, owner, label) {
     leadOwner:   String(getField(row, 'Lead Owner', 'lead owner', 'Owner', 'owner') || '—').trim(),
     createdDate: parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date')),
     status:      String(getField(row, 'Lead Status', 'lead status') || '—').trim(),
+    leadStatus:  String(getField(row, 'Lead Status', 'lead status') || '—').trim(),
     loanOfficer: String(getField(row, 'Loan Officer', 'loan officer', 'loan_officer') || '').trim() || '—',
     converted:   getField(row, 'Converted', 'converted')
   })).sort((a, b) => (a.createdDate || 0) - (b.createdDate || 0));
   const head = '<tr><th>Realtor</th><th>Borrower</th><th>Lead Owner</th><th>Created Date</th><th>Lead Status</th><th>Loan Officer</th><th>Converted</th></tr>';
-  const body = enriched.map(e =>
+  const renderRow = e =>
     '<tr>' +
     '<td style="font-weight:600">' + e.realtor + '</td>' +
     '<td style="font-size:11px">' + e.borrower + '</td>' +
@@ -758,12 +762,12 @@ function buildLeadsModal(rows, owner, label) {
     '<td style="font-size:11px">' + e.status + '</td>' +
     '<td style="font-size:11px">' + e.loanOfficer + '</td>' +
     '<td style="text-align:center">' + (e.converted ? '<span style="color:#085041;font-weight:700">Yes</span>' : '<span style="color:#8899BB">No</span>') + '</td>' +
-    '</tr>'
-  ).join('');
+    '</tr>';
+  const body = enriched.map(renderRow).join('');
   return {
     title: owner + ' — Leads Created',
     sub: label + ' · ' + enriched.length + ' lead' + (enriched.length !== 1 ? 's' : ''),
-    head, body,
+    head, body, rows: enriched, renderRow,
     csvData: [
       ['Realtor', 'Borrower', 'Lead Owner', 'Created Date', 'Lead Status', 'Loan Officer', 'Converted'],
       ...enriched.map(e => [e.realtor, e.borrower, e.leadOwner, fmtDate(e.createdDate), e.status, e.loanOfficer, e.converted ? 'Yes' : 'No'])
@@ -978,20 +982,38 @@ export function renderPerformance() {
 
   // Populate modal cache
   _perfModalCache.clear();
+  // Config de filtros reutilizables por tipo de modal
+  const OPP_FILTERS = [
+    { id: 'f-opp-stage', label: 'Stage', field: 'stage', allLabel: 'All Stages' },
+    { id: 'f-opp-branch', label: 'Branch', field: 'branch', allLabel: 'All Branches' },
+    { id: 'f-opp-lo', label: 'Loan Officer', field: 'loanOfficer', allLabel: 'All LOs' }
+  ];
+  const LEAD_FILTERS = [
+    { id: 'f-lead-status', label: 'Lead Status', field: 'leadStatus', allLabel: 'All Status' },
+    { id: 'f-lead-lo', label: 'Loan Officer', field: 'loanOfficer', allLabel: 'All LOs' }
+  ];
+  const PIPE_FILTERS = [
+    { id: 'f-pipe-stage', label: 'Stage', field: 'stage', allLabel: 'All Stages' },
+    { id: 'f-pipe-branch', label: 'Branch', field: 'branch', allLabel: 'All Branches' },
+    { id: 'f-pipe-health', label: 'Health', field: 'healthiness', allLabel: 'All Health' }
+  ];
+  const withFilters = (m, containerId, filters, countLabel) => { if (m) { m.containerId = containerId; m.filters = filters; m.countLabel = countLabel; } return m; };
+  const oppCount = n => n + ' opportunities';
+  const leadCount = n => n + ' leads';
   _perfModalCache.set('mainLoan',          buildLoanModal(owner, start, end, mainLbl));
-  _perfModalCache.set('mainPipe',          buildPipelineModal(owner, start, end, mainLbl));
+  _perfModalCache.set('mainPipe',          withFilters(buildPipelineModal(owner, start, end, mainLbl), 'perf-oppb2c-filters', OPP_FILTERS, oppCount));
   _perfModalCache.set('mainHunting',       buildHFModal(true,  mainHF.huntingRealtors, owner, mainLbl));
   _perfModalCache.set('mainFarming',       buildHFModal(false, mainHF.farmingRealtors, owner, mainLbl));
   _perfModalCache.set('mainZoomMeetings',  buildZoomMeetingsModal(mainZoom.meetingsDetail, owner, mainLbl));
   _perfModalCache.set('mainZoomExternals', buildZoomExternalsModal(mainZoom.externalsList, owner, mainLbl));
-  _perfModalCache.set('mainLeads',         buildLeadsModal(mainLeads.rows, owner, mainLbl));
+  _perfModalCache.set('mainLeads',         withFilters(buildLeadsModal(mainLeads.rows, owner, mainLbl), 'perf-leadsb2c-filters', LEAD_FILTERS, leadCount));
   _perfModalCache.set('leadRealtors',      buildLeadsRealtorsModal(mainLeads.rows, owner, mainLbl));
   if (hasCmp) {
     _perfModalCache.set('cmpLoan',          buildLoanModal(owner, cmpBounds.start, cmpBounds.end, cmpLbl));
-    _perfModalCache.set('cmpPipe',          buildPipelineModal(owner, cmpBounds.start, cmpBounds.end, cmpLbl));
+    _perfModalCache.set('cmpPipe',          withFilters(buildPipelineModal(owner, cmpBounds.start, cmpBounds.end, cmpLbl), 'perf-oppb2c-filters', OPP_FILTERS, oppCount));
     _perfModalCache.set('cmpZoomMeetings',  buildZoomMeetingsModal(cmpZoom.meetingsDetail, owner, cmpLbl));
     _perfModalCache.set('cmpZoomExternals', buildZoomExternalsModal(cmpZoom.externalsList, owner, cmpLbl));
-    _perfModalCache.set('cmpLeads',         buildLeadsModal(cmpLeads.rows, owner, cmpLbl));
+    _perfModalCache.set('cmpLeads',         withFilters(buildLeadsModal(cmpLeads.rows, owner, cmpLbl), 'perf-leadsb2c-filters', LEAD_FILTERS, leadCount));
     if (cmpHF) {
       _perfModalCache.set('cmpHunting', buildHFModal(true,  cmpHF.huntingRealtors, owner, cmpLbl));
       _perfModalCache.set('cmpFarming', buildHFModal(false, cmpHF.farmingRealtors, owner, cmpLbl));
@@ -1062,7 +1084,7 @@ export function renderPerformance() {
       opps.push({
         lnNum: String(getField(row, 'Loan #', 'loan #') || '—').trim(),
         oppName: String(getField(row, 'Opportunity Name', 'opportunity name') || '—').trim(),
-        realtor: ref || '⚠ Unknown Realtor', hasRef: !!ref,
+        realtor: ref || 'Unknown Realtor', hasRef: !!ref,
         status: ref ? (lostActiveSet.has(rkey) ? 'active' : lostInactiveSet.has(rkey) ? 'inactive' : 'unknown') : 'unknown',
         branch: String(getField(row, 'Branch', 'branch') || '').trim() || '—',
         lo, preQualD, preApprD, ratifD,
@@ -1100,28 +1122,32 @@ export function renderPerformance() {
     const so = lostStageOrder[b.reached] - lostStageOrder[a.reached];
     return so !== 0 ? so : b.amt - a.amt;
   });
+  const lostRenderRow = e =>
+    '<tr>' +
+      '<td style="font-family:monospace;font-size:10px;color:#556080">' + e.lnNum + '</td>' +
+      '<td style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + e.oppName + '">' + e.oppName + '</td>' +
+      '<td style="font-weight:600' + (e.hasRef ? '' : ';color:#B45309') + '">' + e.realtor + '</td>' +
+      '<td>' + lostStatusChip(e.status) + '</td>' +
+      '<td style="font-size:11px">' + e.branch + '</td>' +
+      '<td style="font-size:11px">' + e.lo + '</td>' +
+      '<td class="dt">' + (e.preQualD ? fmtDate(e.preQualD) : '—') + '</td>' +
+      '<td class="dt">' + (e.preApprD ? fmtDate(e.preApprD) : '—') + '</td>' +
+      '<td class="dt">' + (e.ratifD ? fmtDate(e.ratifD) : '—') + '</td>' +
+      '<td>' + lostStageChip(e.reached) + '</td>' +
+    '</tr>';
   _perfModalCache.set('lostOpps', {
     title: owner + ' — Lost Opportunities',
     sub: lostTotal + ' opportunit' + (lostTotal !== 1 ? 'ies' : 'y') + ' · ' + mainLbl,
     head: '<tr><th>Loan #</th><th>Opportunity Name</th><th>Realtor</th><th>Realtor Status</th><th>Branch</th><th>Loan Officer</th><th>Pre-Qual Date</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Stage Reached</th></tr>',
-    body: lostModalRows.map(e =>
-      '<tr>' +
-        '<td style="font-family:monospace;font-size:10px;color:#556080">' + e.lnNum + '</td>' +
-        '<td style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + e.oppName + '">' + e.oppName + '</td>' +
-        '<td style="font-weight:600' + (e.hasRef ? '' : ';color:#B45309') + '">' + e.realtor + '</td>' +
-        '<td>' + lostStatusChip(e.status) + '</td>' +
-        '<td style="font-size:11px">' + e.branch + '</td>' +
-        '<td style="font-size:11px">' + e.lo + '</td>' +
-        '<td class="dt">' + (e.preQualD ? fmtDate(e.preQualD) : '—') + '</td>' +
-        '<td class="dt">' + (e.preApprD ? fmtDate(e.preApprD) : '—') + '</td>' +
-        '<td class="dt">' + (e.ratifD ? fmtDate(e.ratifD) : '—') + '</td>' +
-        '<td>' + lostStageChip(e.reached) + '</td>' +
-      '</tr>'
-    ).join('') +
-    '<tr style="background:#0B192C;font-family:\'Barlow\',sans-serif;font-weight:700">' +
-      '<td style="color:white">TOTAL</td><td style="color:white">—</td><td style="color:white">—</td><td style="color:white">—</td><td style="color:white">—</td><td style="color:white">—</td><td style="color:white">—</td><td style="color:white">—</td><td style="color:white">—</td>' +
-      '<td style="color:white;text-align:center">' + lostTotal + ' opps</td>' +
-    '</tr>',
+    body: lostModalRows.map(lostRenderRow).join(''),
+    rows: lostModalRows,
+    renderRow: lostRenderRow,
+    containerId: 'perf-lost-filters',
+    filters: [
+      { id: 'f-lost-stage', label: 'Stage Reached', field: e => e.reached, allLabel: 'All Stages' },
+      { id: 'f-lost-lo', label: 'Loan Officer', field: e => e.lo, allLabel: 'All LOs' }
+    ],
+    countLabel: n => n + ' lost opportunities',
     csvData: [
       ['Loan #', 'Opportunity Name', 'Realtor', 'Realtor Status', 'Branch', 'Loan Officer', 'Pre-Qual Date', 'Pre-Approval Date', 'Ratified Date', 'Stage Reached'],
       ...lostModalRows.map(e => [e.lnNum, e.oppName, e.realtor, e.status, e.branch === '—' ? '' : e.branch, e.lo === '—' ? '' : e.lo, e.preQualD ? fmtDate(e.preQualD) : '', e.preApprD ? fmtDate(e.preApprD) : '', e.ratifD ? fmtDate(e.ratifD) : '', e.reached]),
@@ -1312,8 +1338,8 @@ export function renderPerformance() {
   const oppStageStyle = {
     'Need Analysis': { cls: ' plb-new', bg: '' },
     'Qualification': { cls: ' plb-working', bg: '' },
-    'Proposal': { cls: '', bg: '#EFF6FF' },
-    'Negotiation': { cls: '', bg: '#F5F3FF' },
+    'Proposal': { cls: ' plb-proposal', bg: '' },
+    'Negotiation': { cls: ' plb-negotiation', bg: '' },
     'Closed Won': { cls: '', bg: '#F0FDF4' },
     'Closed Lost': { cls: ' plb-discarded', bg: '' },
     'Others': { cls: ' plb-other', bg: '' }
@@ -1330,7 +1356,7 @@ export function renderPerformance() {
     const ref = String(getField(row, 'Referred By', 'referred by') || '').trim();
     let r;
     if (!ref) {
-      if (!oppUnknown) { oppUnknown = { name: '⚠ Unknown Realtor', total: 0, cats: {}, loMap: new Map(), unknown: true }; oppStageOrder.forEach(k => oppUnknown.cats[k] = 0); }
+      if (!oppUnknown) { oppUnknown = { name: 'Unknown Realtor', total: 0, cats: {}, loMap: new Map(), unknown: true }; oppStageOrder.forEach(k => oppUnknown.cats[k] = 0); }
       r = oppUnknown;
     } else {
       const key = norm(ref);
@@ -1353,9 +1379,9 @@ export function renderPerformance() {
       return '<div class="perf-leads-breakdown-row' + st.cls + '"' + (st.bg ? ' style="background:' + st.bg + '"' : '') + '>' +
         '<span class="plb-label">' + k + '</span><span class="plb-count">' + oppStageCounts[k] + '</span></div>';
     }).join('') +
-    '<div class="perf-leads-breakdown-row" style="background:' + (oppPctLost > 20 ? '#FFF1F2' : '#F8FAFC') + '">' +
+    '<div class="perf-leads-breakdown-row plb-pct-lost">' +
       '<span class="plb-label">% Lost</span>' +
-      '<span class="plb-count" style="color:' + (oppPctLost > 20 ? '#BE123C' : '#64748B') + '">' + oppPctLost.toFixed(1) + '%</span>' +
+      '<span class="plb-count">' + oppPctLost.toFixed(1) + '%</span>' +
     '</div>' +
   '</div>';
 
@@ -1500,7 +1526,7 @@ export function renderPerformance() {
       if (lo) r.loMap.set(lo, (r.loMap.get(lo) || 0) + 1);
     }
     let g;
-    if (!lo) { if (!pipeNoLo) pipeNoLo = { name: '⚠ No LO Assigned', total: 0, cats: emptyStageObj(), realtorKeys: new Set(), noLo: true }; g = pipeNoLo; }
+    if (!lo) { if (!pipeNoLo) pipeNoLo = { name: 'No LO Assigned', total: 0, cats: emptyStageObj(), realtorKeys: new Set(), noLo: true }; g = pipeNoLo; }
     else { const lk = norm(lo); g = pipeLoMap.get(lk); if (!g) { g = { name: lo, total: 0, cats: emptyStageObj(), realtorKeys: new Set() }; pipeLoMap.set(lk, g); } }
     g.total++;
     if (cat) g.cats[cat]++;
@@ -1626,16 +1652,17 @@ export function renderPerformance() {
 
   const briefcaseSm = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>';
   const pipeRealtorsHtml = '<div style="display:flex;flex-direction:column;gap:4px;margin:8px 0">' +
-    '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#065F46;cursor:pointer" data-perf-modal="openPipelineActive" title="Click to view detailed breakdown">&#10003; ' + pipeActive + ' active realtors</span>' +
-    '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#B45309;cursor:pointer" data-perf-modal="openPipelineInactive" title="Click to view detailed breakdown">&#9201; ' + pipeInactive + ' inactive realtors</span>' +
+    '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#065F46;cursor:pointer" data-perf-modal="openPipelineActive" title="Click to view detailed breakdown"><span class="pip-dot active"></span> ' + pipeActive + ' active realtors</span>' +
+    '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#B45309;cursor:pointer" data-perf-modal="openPipelineInactive" title="Click to view detailed breakdown"><span class="pip-dot inactive"></span> ' + pipeInactive + ' inactive realtors</span>' +
     '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#1D4ED8;cursor:pointer;text-decoration:underline;margin-top:2px" data-perf-modal="openPipelineLO" title="Click to view detailed breakdown">' + briefcaseSm + ' ' + pipeLoCount + ' loan officers</span>' +
   '</div>';
 
   const openPipeAsOf = 'as of ' + MS_SHORT[today.getUTCMonth()] + ' ' + today.getUTCDate() + ', ' + today.getUTCFullYear();
+  _perfModalCache.set('openPipelineAll', withFilters(buildOppTable(openAllRows, owner + ' — Open Pipeline', openPipeCount + ' opportunit' + (openPipeCount !== 1 ? 'ies' : 'y') + ' · open today'), 'perf-pipe-filters', PIPE_FILTERS, oppCount));
   const openBreakdownHtml = '<div class="perf-leads-breakdown">' +
     openStageOrder.filter(k => openStageRows[k].length > 0).map(k => {
       const cnt = openStageRows[k].length;
-      _perfModalCache.set('oppStage:' + k, buildOppTable(openStageRows[k], owner + ' — ' + k, cnt + ' opportunit' + (cnt !== 1 ? 'ies' : 'y') + ' · open today'));
+      _perfModalCache.set('oppStage:' + k, withFilters(buildOppTable(openStageRows[k], owner + ' — ' + k, cnt + ' opportunit' + (cnt !== 1 ? 'ies' : 'y') + ' · open today'), 'perf-pipe-filters', PIPE_FILTERS, oppCount));
       return '<div class="perf-leads-breakdown-row" style="cursor:pointer" data-perf-modal="oppStage:' + k + '" title="Click to view detailed breakdown"><span class="plb-label">' + k + '</span><span class="plb-count">' + cnt + '</span></div>';
     }).join('') +
   '</div>';
@@ -1678,7 +1705,7 @@ export function renderPerformance() {
     const key = ref ? norm(ref) : '';
     const status = ref ? (closingActiveSet.has(key) ? 'active' : closingInactiveSet.has(key) ? 'inactive' : 'unknown') : 'unknown';
     return {
-      realtor: ref || '⚠ Unknown Realtor', hasRef: !!ref, key, status,
+      realtor: ref || 'Unknown Realtor', hasRef: !!ref, key, status,
       branch: String(getField(row, 'Branch', 'branch') || '').trim() || '—',
       lo: String(getField(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') || '').trim() || '—',
       lnNum: String(getField(row, 'Loan #', 'loan #') || '—').trim(),
@@ -1728,7 +1755,7 @@ export function renderPerformance() {
         '<span>' + (closingUniqueKeys.size === 1 ? '1 unique realtor' : closingUniqueKeys.size + ' unique realtors') + '</span>' +
         '<span>· ' + closingActiveCnt + ' active</span>' +
         '<span>· ' + closingInactiveCnt + ' inactive</span>' +
-        (closingUnknownRef > 0 ? '<span style="color:#B45309;font-weight:600">· ' + closingUnknownRef + ' unknown referred by ⚠</span>' : '') +
+        (closingUnknownRef > 0 ? '<span style="color:#B45309;font-weight:600">· ' + closingUnknownRef + ' unknown referred by <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>' : '') +
       '</div>'
     : '';
 
@@ -1768,7 +1795,7 @@ export function renderPerformance() {
   const m20StageOrder = ['Need Analysis', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost', 'Others'];
   const m20StageStyle = {
     'Need Analysis': { cls: ' plb-new', bg: '' }, 'Qualification': { cls: ' plb-working', bg: '' },
-    'Proposal': { cls: '', bg: '#EFF6FF' }, 'Negotiation': { cls: '', bg: '#F5F3FF' },
+    'Proposal': { cls: ' plb-proposal', bg: '' }, 'Negotiation': { cls: ' plb-negotiation', bg: '' },
     'Closed Won': { cls: ' plb-converted', bg: '' }, 'Closed Lost': { cls: ' plb-discarded', bg: '' }, 'Others': { cls: ' plb-other', bg: '' }
   };
   const m20StageCat = raw => {
@@ -1898,8 +1925,8 @@ export function renderPerformance() {
     '</div>';
 
   content.innerHTML =
-    '<div class="perf-banner"><span class="perf-banner-main">Comparing ' + mainRange +
-      (hasCmp ? ' vs ' + rangeStr(cmpBounds.start, cmpBounds.end) + ' (full month)' : '') + '</span></div>' +
+    '<div class="perf-compare-pill">Comparing ' + mainRange +
+      (hasCmp ? ' vs ' + rangeStr(cmpBounds.start, cmpBounds.end) + ' (full month)' : '') + '</div>' +
     '<div class="perf-owner-heading">' + owner + '</div>' +
     '<div class="perf-period-banner">' +
       '<span class="perf-period-current">' + mainShort + '</span>' +
@@ -1948,7 +1975,7 @@ export function renderPerformance() {
         '</div>' +
         '<div class="perf-card-body">' +
           '<div class="perf-card-left">' +
-            '<div class="perf-kpi-value">' + openPipeCount + '</div>' +
+            valBtn('openPipelineAll', openPipeCount) +
             pipeRealtorsHtml +
             '<div class="perf-kpi-sub" style="color:#94A3B8">' + openPipeAsOf + '</div>' +
           '</div>' +
@@ -2122,7 +2149,19 @@ document.addEventListener('click', e => {
   if (!el) return;
   const key = el.getAttribute('data-perf-modal');
   const m = _perfModalCache.get(key);
-  if (m) openModal(m.title, m.sub, m.head, m.body, m.csvData);
+  if (!m) return;
+  openModal(m.title, m.sub, m.head, m.body, m.csvData);
+  if (m.filters && m.rows && m.renderRow) {
+    renderModalFilters({
+      containerId: m.containerId,
+      subtitleId: 'modal-sub',
+      tableBodyId: 'modal-tbody',
+      rows: m.rows,
+      filters: m.filters,
+      renderRow: m.renderRow,
+      countLabel: m.countLabel
+    });
+  }
 });
 
 // Healthiness chips → modal de detalle (BD Performance — Open Pipeline)

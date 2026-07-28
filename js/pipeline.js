@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, initials } from './utils.js';
 import { openModal, pushModalView } from './modal.js';
+import { renderModalFilters } from './modal-filters.js';
 import { dl } from './export.js';
 
 // ── Healthiness breakdown (compartido: pipeline, lo-pipeline, performance, lo-performance) ──
@@ -198,10 +199,10 @@ function unknownWarningHtml(cacheKey, opps, compact) {
   const safe = cacheKey.replace(/"/g, '&quot;');
   if (compact) {
     return '<div class="pipeline-unknown-warning compact" data-unknown-key="' + safe + '">' +
-      '⚠ ' + unk.length + ' opp' + (unk.length !== 1 ? 's' : '') + ' with unknown realtor · <span class="pl-review-link">Review →</span></div>';
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ' + unk.length + ' opp' + (unk.length !== 1 ? 's' : '') + ' with unknown realtor · <span class="pl-review-link">Review →</span></div>';
   }
   return '<div class="pipeline-unknown-warning" data-unknown-key="' + safe + '">' +
-    '<span>⚠</span> ' + unk.length + ' opp' + (unk.length !== 1 ? 's' : '') + ' with unknown realtor — click to review</div>';
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ' + unk.length + ' opp' + (unk.length !== 1 ? 's' : '') + ' with unknown realtor — click to review</div>';
 }
 
 function showUnknownRealtorDetail(cacheKey) {
@@ -458,7 +459,8 @@ export function showPipelineStageDetail(owner, stage) {
     const amtFmt = amt ? '$' + Number(amt).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—';
 
     const daysOpen = oppCd ? Math.floor((today - oppCd) / 86400000) : null;
-    return { row, realtorKey, realtorName, status: cached.status, daysSince: cached.daysSince, lnNum, oppName, branch, loanOfficer, currentMilestone, oppCd, daysOpen, preApprovalDate, ratifiedDate, estClosingDate, amt, amtFmt };
+    const healthiness = String(getField(row, 'Healthiness', 'healthiness') || '').trim();
+    return { row, realtorKey, realtorName, status: cached.status, daysSince: cached.daysSince, lnNum, oppName, branch, loanOfficer, currentMilestone, healthiness, oppCd, daysOpen, preApprovalDate, ratifiedDate, estClosingDate, amt, amtFmt };
   });
 
   // Registrar drill por realtor (celda Realtor Name → todas sus opps abiertas en pipeline)
@@ -484,7 +486,7 @@ export function showPipelineStageDetail(owner, stage) {
       '<th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Loan Amount</th>' +
     '</tr>';
 
-  const body = enriched.map(e => {
+  const renderRow = e => {
     const daysTxt = e.daysSince != null ? e.daysSince + 'd' : '—';
     const daysColor = e.daysSince == null ? '#8899BB' : e.daysSince > 90 ? '#A32D2D' : e.daysSince > 45 ? '#856400' : '#085041';
     return '<tr>' +
@@ -504,7 +506,8 @@ export function showPipelineStageDetail(owner, stage) {
       '<td class="dt">' + (e.estClosingDate ? fmtDate(e.estClosingDate) : '—') + '</td>' +
       '<td class="modal-amount">' + e.amtFmt + '</td>' +
     '</tr>';
-  }).join('');
+  };
+  const body = enriched.map(renderRow).join('');
 
   const totalAmt = enriched.reduce((s, e) => {
     const a = parseFloat(getField(e.row, 'Loan Amount', 'loan amount') || 0);
@@ -533,6 +536,19 @@ export function showPipelineStageDetail(owner, stage) {
     enriched.length + ' opportunit' + (enriched.length !== 1 ? 'ies' : 'y') + ' · Total: ' + totalFmt,
     head, body, csvData
   );
+  renderModalFilters({
+    containerId: 'ps-detail-filters',
+    subtitleId: 'modal-sub',
+    tableBodyId: 'modal-tbody',
+    rows: enriched,
+    filters: [
+      { id: 'f-ps-branch', label: 'Branch', field: 'branch', allLabel: 'All Branches' },
+      { id: 'f-ps-lo', label: 'Loan Officer', field: 'loanOfficer', allLabel: 'All LOs' },
+      { id: 'f-ps-health', label: 'Health', field: 'healthiness', allLabel: 'All Health' }
+    ],
+    renderRow,
+    countLabel: n => n + ' opportunities'
+  });
 }
 
 export function renderClosedWon() {

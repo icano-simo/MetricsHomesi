@@ -247,5 +247,5 @@ async function _runLoCalc() {
 
   const effectiveLOs = allowedLOs.length ? allowedLOs : [...allowedNorm.values()];
   bus.emit('lo-calc:complete', { windowDays, cutoff, floorDate, inactFloor, allowedOwners: effectiveLOs });
-  bus.emit('status', { type: 'ok', msg: '✅ LO Calculation complete — ' + state.loActiveResults.length + ' active · ' + state.loInactiveResults.length + ' inactive · ' + state.loUnassignedResults.length + ' unassigned' });
+  bus.emit('status', { type: 'ok', msg: 'LO Calculation complete — ' + state.loActiveResults.length + ' active · ' + state.loInactiveResults.length + ' inactive · ' + state.loUnassignedResults.length + ' unassigned' });
 }

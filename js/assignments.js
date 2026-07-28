@@ -61,13 +61,13 @@ export function loadSfReference(inputEl) {
         // Persistent success — never cleared
         const today = fmtDate(new Date());
         if (statusEl) statusEl.innerHTML =
-          '<span style="color:#1A9E5A;font-weight:700">Uploaded ✓</span>' +
+          '<span style="color:#1A9E5A;font-weight:700">Uploaded &#10003;</span>' +
           ' &nbsp;' + file.name + ' &nbsp;·&nbsp; ' + state.realtorOwnerMap.size + ' rows &nbsp;·&nbsp; ' + today;
       } catch (e) {
-        if (statusEl) statusEl.textContent = '⚠ Saved in memory but Supabase error: ' + e.message;
+        if (statusEl) statusEl.textContent = 'Saved in memory but Supabase error: ' + e.message;
       }
     } catch (e) {
-      if (statusEl) statusEl.textContent = '⚠ Error reading file: ' + e.message;
+      if (statusEl) statusEl.textContent = 'Error reading file: ' + e.message;
     }
   };
   reader.readAsBinaryString(file);
@@ -546,6 +546,6 @@ export async function saveAllAssignments() {
       headers: { 'Prefer': 'return=minimal,resolution=merge-duplicates' },
       body: JSON.stringify(rows)
     });
-    st.textContent = '✅ Saved to Supabase ' + fmtNow();
-  } catch (e) { st.textContent = '⚠ Save error: ' + e.message; }
+    st.textContent = 'Saved to Supabase ' + fmtNow();
+  } catch (e) { st.textContent = 'Save error: ' + e.message; }
 }

@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, initials, normalizeLO } from './utils.js';
 import { openModal, pushModalView } from './modal.js';
+import { renderModalFilters } from './modal-filters.js';
 import { dl } from './export.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
@@ -314,7 +315,7 @@ function showLoPipelineStageDetail(lo, stage) {
       '<th colspan="12" style="background:#0D4B7A;color:white;text-align:center">Loan</th>' +
     '</tr>' +
     '<tr><th>Realtor</th><th>Status</th><th>Days Since Last Lead</th><th>Loan #</th><th>Opportunity Name</th><th>Branch</th><th>Current Milestone</th><th>Health Status</th><th>Loan Status</th><th>Created Date</th><th>Days Open</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Est. Closing Date</th><th>Loan Amount</th></tr>';
-  const body = enriched.map(e => {
+  const renderRow = e => {
     const daysColor = e.daysSince == null ? '#8899BB' : e.daysSince > 90 ? '#A32D2D' : e.daysSince > 45 ? '#856400' : '#085041';
     return '<tr>' +
       '<td' + (e.realtorKey ? ' style="cursor:pointer;text-decoration:underline;color:#1D4ED8" data-lo-drill-pipe="loPlReal:' + e.realtorKey + '"' : '') + '>' + e.realtorName + '</td>' +
@@ -333,10 +334,24 @@ function showLoPipelineStageDetail(lo, stage) {
       '<td class="dt">' + (e.estClosingDate ? fmtDate(e.estClosingDate) : '—') + '</td>' +
       '<td class="modal-amount">' + e.amtFmt + '</td>' +
     '</tr>';
-  }).join('');
+  };
+  const body = enriched.map(renderRow).join('');
   openModal((isAll ? 'ALL LOs' : lo) + ' — ' + stage,
     enriched.length + ' opportunit' + (enriched.length !== 1 ? 'ies' : 'y') + ' · Total: ' + (totalAmt ? '$' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'),
     head, body, null);
+  renderModalFilters({
+    containerId: 'lop-detail-filters',
+    subtitleId: 'modal-sub',
+    tableBodyId: 'modal-tbody',
+    rows: enriched,
+    filters: [
+      { id: 'f-lop-branch', label: 'Branch', field: e => e.branch, allLabel: 'All Branches' },
+      { id: 'f-lop-bd', label: 'BD Owner', field: e => String(getField(e.row, 'Opportunity Owner', 'opportunity owner') || '').trim(), allLabel: 'All BDs' },
+      { id: 'f-lop-health', label: 'Health', field: e => String(getField(e.row, 'Healthiness', 'healthiness') || '').trim(), allLabel: 'All Health' }
+    ],
+    renderRow,
+    countLabel: n => n + ' opportunities'
+  });
 }
 
 export function renderLoCwSection() {

@@ -290,6 +290,6 @@ export async function saveAllLoAssignments() {
       headers: { 'Prefer': 'return=minimal,resolution=merge-duplicates' },
       body: JSON.stringify(rows)
     });
-    if (st) st.textContent = '✅ Saved ' + fmtNow();
-  } catch (e) { if (st) st.textContent = '⚠ Error: ' + e.message; }
+    if (st) st.textContent = 'Saved ' + fmtNow();
+  } catch (e) { if (st) st.textContent = 'Error: ' + e.message; }
 }

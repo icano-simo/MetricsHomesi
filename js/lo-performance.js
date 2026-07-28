@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, normalizeLO } from './utils.js';
 import { openModal, pushModalView } from './modal.js';
+import { renderModalFilters } from './modal-filters.js';
 import { kpiGoals } from './performance.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
@@ -855,15 +856,14 @@ export function renderLoPerformance() {
       '<th>Loan #</th><th>Opportunity Name</th><th>Branch</th><th>BD Owner</th><th>Health Status</th>' +
       '<th>Created Date</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Pre-Qual Date</th><th>Est. Closing Date</th>' +
       '<th style="text-align:right">Loan Amount</th></tr>';
-    let totalAmt = 0;
-    const body = sorted.map(row => {
+    const totalAmt = sorted.reduce((s, row) => s + (parseFloat(String(getField(row, 'Loan Amount', 'loan amount') || '').replace(/[$,]/g, '')) || 0), 0);
+    const renderRow = row => {
       const ref = String(getField(row, 'Referred By', 'referred by') || '—').trim();
       const rkey = norm(ref);
       const stInfo = openStatusInfo(rkey);
       const last = openLastLeadByKey.get(rkey);
       const days = last ? Math.floor((today - last) / 86400000) : null;
       const amt = parseFloat(String(getField(row, 'Loan Amount', 'loan amount') || '').replace(/[$,]/g, '')) || 0;
-      totalAmt += amt;
       return '<tr>' +
         '<td style="font-weight:600">' + ref + '</td>' +
         '<td><span style="font-weight:700;font-size:11px;color:' + stInfo.color + '">' + stInfo.label + '</span></td>' +
@@ -880,7 +880,8 @@ export function renderLoPerformance() {
         '<td class="dt">' + fmtDate(parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date'))) + '</td>' +
         '<td class="modal-amount" style="text-align:right">' + (amt ? '$' + amt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—') + '</td>' +
       '</tr>';
-    }).join('');
+    };
+    const body = sorted.map(renderRow).join('');
     const csvData = [
       ['Realtor', 'Realtor Status', 'Days Since Last Lead', 'Loan #', 'Opportunity Name', 'Branch', 'BD Owner', 'Health Status', 'Created Date', 'Pre-Approval Date', 'Ratified Date', 'Pre-Qual Date', 'Est. Closing Date', 'Loan Amount'],
       ...sorted.map(row => {
@@ -904,13 +905,24 @@ export function renderLoPerformance() {
     return {
       title: lo + ' — ' + titleSuffix,
       sub: sorted.length + ' opportunit' + (sorted.length !== 1 ? 'ies' : 'y') + ' · Total: ' + (totalAmt ? '$' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—') + ' · open today',
-      head, body, csvData
+      head, body, csvData, rows: sorted, renderRow
     };
   };
 
   openStageOrder.forEach(k => {
     if (openStageRows[k].length) _loPerfModalCache.set('loOpenStage:' + k, buildLoOpenDetail(openStageRows[k], k));
   });
+
+  // Modal del total de Open Pipeline (clic en número total) — con filtros
+  const loOpenPipeAll = buildLoOpenDetail(openAllRows, 'Open Pipeline');
+  loOpenPipeAll.containerId = 'lo-pipe-filters';
+  loOpenPipeAll.filters = [
+    { id: 'f-lo-pipe-stage', label: 'Stage', field: r => String(getField(r, 'Stage', 'stage') || '').trim(), allLabel: 'All Stages' },
+    { id: 'f-lo-pipe-branch', label: 'Branch', field: r => String(getField(r, 'Branch', 'branch') || '').trim(), allLabel: 'All Branches' },
+    { id: 'f-lo-pipe-health', label: 'Health', field: r => String(getField(r, 'Healthiness', 'healthiness') || '').trim(), allLabel: 'All Health' }
+  ];
+  loOpenPipeAll.countLabel = n => n + ' opportunities';
+  _loPerfModalCache.set('loOpenPipeAll', loOpenPipeAll);
 
   // Índices por realtor y por BD (Opportunity Owner) para los modales
   const emptyCats = () => ({ 'Need Analysis': 0, 'Qualification': 0, 'Proposal': 0, 'Negotiation': 0 });
@@ -1032,8 +1044,8 @@ export function renderLoPerformance() {
   const openPipeAsOf = 'as of ' + MS_SHORT[today.getUTCMonth()] + ' ' + today.getUTCDate() + ', ' + today.getUTCFullYear();
   const briefcaseSm = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>';
   const openPipeRealtorsHtml = '<div style="display:flex;flex-direction:column;gap:4px;margin:8px 0">' +
-    '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#085041;cursor:pointer" data-lo-perf-modal="loOpenPipeActive" title="Click to view detailed breakdown">&#10003; ' + openActive + ' active realtors</span>' +
-    '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#B45309;cursor:pointer" data-lo-perf-modal="loOpenPipeInactive" title="Click to view detailed breakdown">&#9201; ' + openInactive + ' inactive realtors</span>' +
+    '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#085041;cursor:pointer" data-lo-perf-modal="loOpenPipeActive" title="Click to view detailed breakdown"><span class="pip-dot active"></span> ' + openActive + ' active realtors</span>' +
+    '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#B45309;cursor:pointer" data-lo-perf-modal="loOpenPipeInactive" title="Click to view detailed breakdown"><span class="pip-dot inactive"></span> ' + openInactive + ' inactive realtors</span>' +
     '<span class="kpi-clickable" style="font-size:12px;font-weight:600;color:#1D4ED8;cursor:pointer;text-decoration:underline;margin-top:2px" data-lo-perf-modal="loOpenPipeBD" title="Click to view detailed breakdown">' + briefcaseSm + ' ' + openBdCount + ' business developers</span>' +
   '</div>';
   const openPipeBreakdownHtml = '<div class="perf-leads-breakdown">' +
@@ -1049,7 +1061,7 @@ export function renderLoPerformance() {
       '</div>' +
       '<div class="perf-card-body">' +
         '<div class="perf-card-left">' +
-          '<div class="perf-kpi-value">' + openPipeCount + '</div>' +
+          '<button class="perf-kpi-value kpi-clickable" style="background:none;border:none;padding:0;cursor:pointer;text-align:left" data-lo-perf-modal="loOpenPipeAll" title="Click to view detailed breakdown">' + openPipeCount + '</button>' +
           openPipeRealtorsHtml +
           '<div class="perf-kpi-sub" style="color:#94A3B8">' + openPipeAsOf + '</div>' +
         '</div>' +
@@ -1191,7 +1203,7 @@ export function renderLoPerformance() {
       const rkey = ref ? norm(ref) : '';
       opps.push({
         lnNum: String(getField(row, 'Loan #', 'loan #') || '—').trim(),
-        realtor: ref || '⚠ Unknown Realtor', hasRef: !!ref,
+        realtor: ref || 'Unknown Realtor', hasRef: !!ref,
         status: ref ? (openActiveSet.has(rkey) ? 'active' : openInactiveSet.has(rkey) ? 'inactive' : 'unknown') : 'unknown',
         branch: String(getField(row, 'Branch', 'branch') || '').trim() || '—',
         bd, preQualD, preApprD, ratifD,
@@ -1223,22 +1235,31 @@ export function renderLoPerformance() {
       : '<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;background:#FEF9C3;color:#854D0E">Pre-Qual</span>';
   const lostStageOrder = { 'Ratified': 2, 'Pre-Approval': 1, 'Pre-Qual': 0 };
   const lostModalRows = [...mainLost.opps].sort((a, b) => lostStageOrder[b.reached] - lostStageOrder[a.reached]);
+  const loLostRenderRow = e =>
+    '<tr>' +
+      '<td style="font-family:monospace;font-size:10px;color:#556080">' + e.lnNum + '</td>' +
+      '<td style="font-weight:600' + (e.hasRef ? '' : ';color:#B45309') + '">' + e.realtor + '</td>' +
+      '<td>' + lostStatusChip(e.status) + '</td>' +
+      '<td style="font-size:11px">' + e.branch + '</td>' +
+      '<td style="font-size:11px">' + e.bd + '</td>' +
+      '<td class="dt">' + (e.preQualD ? fmtDate(e.preQualD) : '—') + '</td>' +
+      '<td class="dt">' + (e.preApprD ? fmtDate(e.preApprD) : '—') + '</td>' +
+      '<td class="dt">' + (e.ratifD ? fmtDate(e.ratifD) : '—') + '</td>' +
+      '<td>' + lostStageChip(e.reached) + '</td>' +
+    '</tr>';
   _loPerfModalCache.set('lostOpps', {
     title: lo + ' — Lost Opportunities',
     sub: mainLost.total + ' opportunit' + (mainLost.total !== 1 ? 'ies' : 'y') + ' · ' + mainLbl,
     head: '<tr><th>Loan #</th><th>Realtor</th><th>Realtor Status</th><th>Branch</th><th>BD Owner</th><th>Pre-Qual Date</th><th>Pre-Approval Date</th><th>Ratified Date</th><th>Stage Reached</th></tr>',
-    body: lostModalRows.map(e =>
-      '<tr>' +
-        '<td style="font-family:monospace;font-size:10px;color:#556080">' + e.lnNum + '</td>' +
-        '<td style="font-weight:600' + (e.hasRef ? '' : ';color:#B45309') + '">' + e.realtor + '</td>' +
-        '<td>' + lostStatusChip(e.status) + '</td>' +
-        '<td style="font-size:11px">' + e.branch + '</td>' +
-        '<td style="font-size:11px">' + e.bd + '</td>' +
-        '<td class="dt">' + (e.preQualD ? fmtDate(e.preQualD) : '—') + '</td>' +
-        '<td class="dt">' + (e.preApprD ? fmtDate(e.preApprD) : '—') + '</td>' +
-        '<td class="dt">' + (e.ratifD ? fmtDate(e.ratifD) : '—') + '</td>' +
-        '<td>' + lostStageChip(e.reached) + '</td>' +
-      '</tr>').join(''),
+    body: lostModalRows.map(loLostRenderRow).join(''),
+    rows: lostModalRows,
+    renderRow: loLostRenderRow,
+    containerId: 'lo-lost-filters',
+    filters: [
+      { id: 'f-lo-lost-stage', label: 'Stage Reached', field: e => e.reached, allLabel: 'All Stages' },
+      { id: 'f-lo-lost-bd', label: 'BD Owner', field: e => e.bd, allLabel: 'All BDs' }
+    ],
+    countLabel: n => n + ' lost opportunities',
     csvData: [
       ['Loan #', 'Realtor', 'Realtor Status', 'Branch', 'BD Owner', 'Pre-Qual Date', 'Pre-Approval Date', 'Ratified Date', 'Stage Reached'],
       ...lostModalRows.map(e => [e.lnNum, e.realtor, e.status, e.branch, e.bd,
@@ -1296,7 +1317,7 @@ export function renderLoPerformance() {
     return 'Others';
   };
   const oppcStageOrder = ['Need Analysis', 'Qualification', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost', 'Others'];
-  const oppcStageStyle = { 'Need Analysis': { cls: ' plb-new', bg: '' }, 'Qualification': { cls: ' plb-working', bg: '' }, 'Proposal': { cls: '', bg: '#EFF6FF' }, 'Negotiation': { cls: '', bg: '#F5F3FF' }, 'Closed Won': { cls: '', bg: '#F0FDF4' }, 'Closed Lost': { cls: ' plb-discarded', bg: '' }, 'Others': { cls: ' plb-other', bg: '' } };
+  const oppcStageStyle = { 'Need Analysis': { cls: ' plb-new', bg: '' }, 'Qualification': { cls: ' plb-working', bg: '' }, 'Proposal': { cls: ' plb-proposal', bg: '' }, 'Negotiation': { cls: ' plb-negotiation', bg: '' }, 'Closed Won': { cls: '', bg: '#F0FDF4' }, 'Closed Lost': { cls: ' plb-discarded', bg: '' }, 'Others': { cls: ' plb-other', bg: '' } };
   const oppcStageCounts = {}; oppcStageOrder.forEach(k => oppcStageCounts[k] = 0);
   const oppcRealtorMap = new Map();
   let oppcUnknown = null;
@@ -1307,7 +1328,7 @@ export function renderLoPerformance() {
     const ref = String(getField(row, 'Referred By', 'referred by') || '').trim();
     let r;
     if (!ref) {
-      if (!oppcUnknown) { oppcUnknown = { name: '⚠ Unknown Realtor', total: 0, cats: {}, ownerMap: new Map(), unknown: true }; oppcStageOrder.forEach(k => oppcUnknown.cats[k] = 0); }
+      if (!oppcUnknown) { oppcUnknown = { name: 'Unknown Realtor', total: 0, cats: {}, ownerMap: new Map(), unknown: true }; oppcStageOrder.forEach(k => oppcUnknown.cats[k] = 0); }
       r = oppcUnknown;
     } else {
       const key = norm(ref);
@@ -1338,7 +1359,7 @@ export function renderLoPerformance() {
       const st = oppcStageStyle[k];
       return '<div class="perf-leads-breakdown-row' + st.cls + '"' + (st.bg ? ' style="background:' + st.bg + '"' : '') + '><span class="plb-label">' + k + '</span><span class="plb-count">' + oppcStageCounts[k] + '</span></div>';
     }).join('') +
-    '<div class="perf-leads-breakdown-row" style="background:' + (oppcPctLost > 20 ? '#FFF1F2' : '#F8FAFC') + '"><span class="plb-label">% Lost</span><span class="plb-count" style="color:' + (oppcPctLost > 20 ? '#BE123C' : '#64748B') + '">' + oppcPctLost.toFixed(1) + '%</span></div>' +
+    '<div class="perf-leads-breakdown-row plb-pct-lost"><span class="plb-label">% Lost</span><span class="plb-count">' + oppcPctLost.toFixed(1) + '%</span></div>' +
   '</div>';
 
   // Modal: Realtors — Opportunities Breakdown
@@ -1377,27 +1398,37 @@ export function renderLoPerformance() {
   const oppcCreatedDate = row => parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'));
   const oppcDetailRows = [...oppCreatedRows].sort((a, b) => (oppcCreatedDate(b) || 0) - (oppcCreatedDate(a) || 0));
   const oppcDetailCols = ['Loan #', 'Opportunity Name', 'Realtor', 'Loan Officer', 'BD Owner', 'Stage', 'Pre-Approval Date', 'Ratified Date', 'Est. Closing Date', 'Disbursement Date', 'Created Date', 'Loan Amount'];
+  const loOppCreatedRenderRow = row => {
+    const amt = parseFloat(String(getField(row, 'Loan Amount', 'loan amount') || '').replace(/[$,]/g, '')) || 0;
+    return '<tr>' +
+      '<td style="font-family:monospace;font-size:10px;color:#556080">' + (String(getField(row, 'Loan #', 'loan #') || '—').trim()) + '</td>' +
+      '<td style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + (String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim()) + '">' + (String(getField(row, 'Opportunity Name', 'opportunity name') || '—').trim()) + '</td>' +
+      '<td>' + (String(getField(row, 'Referred By', 'referred by') || '—').trim()) + '</td>' +
+      '<td style="font-size:11px">' + (String(getField(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') || '—').trim()) + '</td>' +
+      '<td style="font-size:11px">' + (String(getField(row, 'Opportunity Owner', 'opportunity owner') || '—').trim()) + '</td>' +
+      '<td style="font-size:11px">' + (String(getField(row, 'Stage', 'stage') || '—').trim()) + '</td>' +
+      '<td class="dt">' + fmtDate(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date'))) + '</td>' +
+      '<td class="dt">' + fmtDate(parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date'))) + '</td>' +
+      '<td class="dt">' + fmtDate(parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date'))) + '</td>' +
+      '<td class="dt">' + fmtDate(parseDate(getField(row, 'Disbursement Date', 'disbursement date'))) + '</td>' +
+      '<td class="dt">' + fmtDate(oppcCreatedDate(row)) + '</td>' +
+      '<td class="modal-amount" style="text-align:right">' + (amt ? '$' + amt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—') + '</td>' +
+    '</tr>';
+  };
   _loPerfModalCache.set('loOppCreated', {
     title: lo + ' — Opportunities Created',
     sub: oppcTotal + ' opportunit' + (oppcTotal !== 1 ? 'ies' : 'y') + ' · ' + mainLbl,
     head: '<tr>' + oppcDetailCols.map(c => '<th' + (c === 'Loan Amount' ? ' style="text-align:right"' : '') + '>' + c + '</th>').join('') + '</tr>',
-    body: oppcDetailRows.map(row => {
-      const amt = parseFloat(String(getField(row, 'Loan Amount', 'loan amount') || '').replace(/[$,]/g, '')) || 0;
-      return '<tr>' +
-        '<td style="font-family:monospace;font-size:10px;color:#556080">' + (String(getField(row, 'Loan #', 'loan #') || '—').trim()) + '</td>' +
-        '<td style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + (String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim()) + '">' + (String(getField(row, 'Opportunity Name', 'opportunity name') || '—').trim()) + '</td>' +
-        '<td>' + (String(getField(row, 'Referred By', 'referred by') || '—').trim()) + '</td>' +
-        '<td style="font-size:11px">' + (String(getField(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') || '—').trim()) + '</td>' +
-        '<td style="font-size:11px">' + (String(getField(row, 'Opportunity Owner', 'opportunity owner') || '—').trim()) + '</td>' +
-        '<td style="font-size:11px">' + (String(getField(row, 'Stage', 'stage') || '—').trim()) + '</td>' +
-        '<td class="dt">' + fmtDate(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date'))) + '</td>' +
-        '<td class="dt">' + fmtDate(parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date'))) + '</td>' +
-        '<td class="dt">' + fmtDate(parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date'))) + '</td>' +
-        '<td class="dt">' + fmtDate(parseDate(getField(row, 'Disbursement Date', 'disbursement date'))) + '</td>' +
-        '<td class="dt">' + fmtDate(oppcCreatedDate(row)) + '</td>' +
-        '<td class="modal-amount" style="text-align:right">' + (amt ? '$' + amt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—') + '</td>' +
-      '</tr>';
-    }).join(''),
+    body: oppcDetailRows.map(loOppCreatedRenderRow).join(''),
+    rows: oppcDetailRows,
+    renderRow: loOppCreatedRenderRow,
+    containerId: 'lo-oppc-filters',
+    filters: [
+      { id: 'f-lo-opp-stage', label: 'Stage', field: r => String(getField(r, 'Stage', 'stage') || '').trim(), allLabel: 'All Stages' },
+      { id: 'f-lo-opp-branch', label: 'Branch', field: r => String(getField(r, 'Branch', 'branch') || '').trim(), allLabel: 'All Branches' },
+      { id: 'f-lo-opp-bd', label: 'BD Owner', field: r => String(getField(r, 'Opportunity Owner', 'opportunity owner') || '').trim(), allLabel: 'All BDs' }
+    ],
+    countLabel: n => n + ' opportunities',
     csvData: [oppcDetailCols, ...oppcDetailRows.map(row => {
       const amt = parseFloat(String(getField(row, 'Loan Amount', 'loan amount') || '').replace(/[$,]/g, '')) || 0;
       return [String(getField(row, 'Loan #', 'loan #') || '').trim(), String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim(), String(getField(row, 'Referred By', 'referred by') || '').trim(), String(getField(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer') || '').trim(), String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim(), String(getField(row, 'Stage', 'stage') || '').trim(), fmtDate(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre_approved_date'))), fmtDate(parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date'))), fmtDate(parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'est_closing_date', 'Close Date', 'close date'))), fmtDate(parseDate(getField(row, 'Disbursement Date', 'disbursement date'))), fmtDate(oppcCreatedDate(row)), amt || 0];
@@ -1422,9 +1453,7 @@ export function renderLoPerformance() {
     '</div>';
 
   content.innerHTML =
-    '<div class="perf-banner"><span class="perf-banner-main">' + mainLbl + '</span>' +
-      (hasCmp ? '<span class="perf-banner-vs">vs</span><span class="perf-banner-cmp">' + cmpLbl + '</span>' : '') +
-    '</div>' +
+    '<div class="perf-compare-pill">Comparing ' + mainLbl + (hasCmp ? ' vs ' + cmpLbl : '') + '</div>' +
     '<div class="perf-owner-heading">' + lo + '</div>' +
 
     '<div class="perf-section-label">01 &mdash; Pipeline &amp; Inputs</div>' +
@@ -1547,7 +1576,19 @@ document.addEventListener('click', e => {
   if (!el) return;
   const key = el.getAttribute('data-lo-perf-modal');
   const m = _loPerfModalCache.get(key);
-  if (m) openModal(m.title, m.sub, m.head, m.body, m.csvData);
+  if (!m) return;
+  openModal(m.title, m.sub, m.head, m.body, m.csvData);
+  if (m.filters && m.rows && m.renderRow) {
+    renderModalFilters({
+      containerId: m.containerId,
+      subtitleId: 'modal-sub',
+      tableBodyId: 'modal-tbody',
+      rows: m.rows,
+      filters: m.filters,
+      renderRow: m.renderRow,
+      countLabel: m.countLabel
+    });
+  }
 });
 
 // Healthiness chips → modal de detalle (LO Performance — Open Pipeline)

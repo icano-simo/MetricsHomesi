@@ -171,5 +171,5 @@ async function _runCalc() {
   if (uBadge) uBadge.textContent = state.unassignedResults.length;
 
   bus.emit('calc:complete', { windowDays, cutoff, floorDate, inactFloor, allowedOwners });
-  bus.emit('status', { type: 'ok', msg: '✅ Calculation complete — ' + state.activeResults.length + ' active · ' + state.inactiveResults.length + ' inactive · ' + state.unassignedResults.length + ' unassigned' });
+  bus.emit('status', { type: 'ok', msg: 'Calculation complete — ' + state.activeResults.length + ' active · ' + state.inactiveResults.length + ' inactive · ' + state.unassignedResults.length + ' unassigned' });
 }

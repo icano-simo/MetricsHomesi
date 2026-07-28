@@ -18,12 +18,12 @@
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
-        <i class="ti ti-menu-2"></i>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
       </button>
     </div>
     <div class="sidebar-nav">
       <button class="sidebar-item" id="nav-upload" data-view="data-upload" onclick="showView('data-upload')">
-        <i class="ti ti-upload"></i>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16a4 4 0 1 1 1-7.9A5 5 0 0 1 17 8a3.5 3.5 0 0 1 1 6.8"/><path d="M12 18v-6"/><path d="M9 15l3-3 3 3"/></svg>
         <span class="sidebar-item-label">Data Upload</span>
       </button>
       <div class="sidebar-divider"></div>
@@ -36,12 +36,12 @@
         <span class="sidebar-item-label">LO Metrics</span>
       </button>
       <button class="sidebar-item" id="nav-meetings-review" data-view="meetings-review" onclick="showView('meetings-review')" style="display:none">
-        <i class="ti ti-video"></i>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3z"/></svg>
         <span class="sidebar-item-label">Meetings Review</span>
       </button>
       <div class="sidebar-divider"></div>
       <button class="sidebar-item" id="nav-settings" onclick="openSettings()">
-        <i class="ti ti-settings"></i>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span class="sidebar-item-label">Settings</span>
       </button>
     </div>
@@ -51,15 +51,8 @@
   <div class="app-wrap" id="app-wrap">
 
     <div class="topbar">
-      <div class="logo-mark">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4.3 20.2 V10.5 L12 3.8 L19.7 10.5 V20.2 Z" />
-          <path d="M9.9 20.2 V15 L12 12.9 L14.1 15 V20.2" />
-        </svg>
-      </div>
-      <span class="logo-text">HOME<span>SÍ</span></span>
-      <span style="font-size:12px;color:rgba(255,255,255,0.3);margin-left:2px;font-family:'Barlow',sans-serif">Realtors Dashboard</span>
-      <span class="topbar-sub">Powered by Supreme Lending</span>
+      <img class="logo-img" src="/HOMESI_Logo1_Color.jpg" alt="HOMESÍ — Powered by Supreme Lending">
+      <span class="topbar-tagline">Realtors Dashboard</span>
       <div class="stripe"></div>
     </div>
 

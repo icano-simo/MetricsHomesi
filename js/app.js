@@ -182,14 +182,14 @@ function handleFile(e, type) {
       setProgress(cardId, 100);
       if (uz) { uz.classList.remove('uploading'); uz.classList.add('ok'); }
       const lbl = document.getElementById('uz-' + cardId + '-lbl');
-      if (lbl) lbl.textContent = '✓ ' + file.name + ' (' + (data ? data.length : 0) + ' rows)';
+      if (lbl) lbl.textContent = '' + file.name + ' (' + (data ? data.length : 0) + ' rows)';
       const saved = document.getElementById('uz-' + cardId + '-saved');
       if (saved) {
         saved.textContent = '💾 Saved ' + new Date().toLocaleDateString('es-CO');
         saved.classList.remove('hidden');
       }
       if (state.leadsData || state.oppData) document.getElementById('run-btn').disabled = false;
-      setStatus('ok', '✅ ' + file.name + ' saved to Supabase (' + (data ? data.length : 0) + ' rows)');
+      setStatus('ok', '' + file.name + ' saved to Supabase (' + (data ? data.length : 0) + ' rows)');
     } catch (err) {
       if (uz) uz.classList.remove('uploading');
       setStatus('err', '❌ Error: ' + err.message);
@@ -252,9 +252,9 @@ async function saveLoList() {
       headers: { 'Prefer': 'return=minimal,resolution=merge-duplicates' },
       body: JSON.stringify([{ key: 'lo_list', text_value: val }])
     });
-    if (statusEl) { statusEl.textContent = '✓ Saved'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+    if (statusEl) { statusEl.textContent = 'Saved'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
   } catch (e) {
-    if (statusEl) statusEl.textContent = '⚠ Error: ' + e.message;
+    if (statusEl) statusEl.textContent = 'Error: ' + e.message;
   }
 }
 
@@ -374,7 +374,7 @@ async function initApp() {
       if (type === 'realtor_map') {
         const statusEl = document.getElementById('sf-ref-status');
         if (statusEl) statusEl.innerHTML =
-          '<span style="color:#1A9E5A;font-weight:700">Uploaded ✓</span>' +
+          '<span style="color:#1A9E5A;font-weight:700">Uploaded &#10003;</span>' +
           ' &nbsp;' + m.file_name + ' &nbsp;·&nbsp; ' + m.row_count + ' rows &nbsp;·&nbsp; ' +
           new Date(m.uploaded_at).toLocaleDateString('es-CO');
         continue;
@@ -384,7 +384,7 @@ async function initApp() {
       const uzEl = document.getElementById('uz-' + cardId);
       if (uzEl) uzEl.classList.add('ok');
       const lblEl = document.getElementById('uz-' + cardId + '-lbl');
-      if (lblEl) lblEl.textContent = '✓ ' + m.file_name + ' (' + m.row_count + ' rows)';
+      if (lblEl) lblEl.textContent = '' + m.file_name + ' (' + m.row_count + ' rows)';
       const savedEl = document.getElementById('uz-' + cardId + '-saved');
       if (savedEl) {
         savedEl.textContent = '💾 Saved ' + new Date(m.uploaded_at).toLocaleDateString('es-CO');
@@ -468,10 +468,10 @@ async function initApp() {
     }
 
     if (hasData) {
-      setStatus('ok', '✅ Supabase connected — saved data available. Press Calculate to view results.');
+      setStatus('ok', 'Supabase connected — saved data available. Press Calculate to view results.');
       document.getElementById('run-btn').disabled = false;
     } else {
-      setStatus('ok', '✅ Supabase connected — upload your files to get started.');
+      setStatus('ok', 'Supabase connected — upload your files to get started.');
     }
   } catch (e) {
     setStatus('err', '❌ Error: ' + e.message);

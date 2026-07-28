@@ -203,8 +203,8 @@ export function renderLoTrends() {
 
   const fmtAvg = v => v === null ? '—' : (v % 1 === 0 ? String(v) : v.toFixed(1));
 
-  const hBg = 'var(--hs-red)', fBg = '#085041', navyBg = 'var(--hs-navy)';
-  const hBgCur = '#D93030', fBgCur = '#064030';
+  const hBg = 'var(--hs-red)', fBg = 'var(--hs-navy)', navyBg = 'var(--hs-navy)';
+  const hBgCur = '#D93030', fBgCur = 'var(--hs-navy-light)';
   const thBase = 'font-family:\'Barlow\',sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:white;text-align:center;padding:7px 10px;';
   const th = (txt, bg) => '<th style="' + thBase + 'background:' + bg + ';opacity:.9">' + txt + '</th>';
   const thCur = (txt, bg) => '<th style="' + thBase + 'background:' + bg + ';border-bottom:3px solid rgba(255,255,255,.55)">' + txt + '</th>';
