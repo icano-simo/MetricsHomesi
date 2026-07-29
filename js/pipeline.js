@@ -126,6 +126,59 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 const _cwCsvCache = new Map();
 const _cwDetailCache = new Map();
 
+// ── Drill-down por realtor en Closed Won (historial completo de closings) ──
+const _cwDrill = new Map(); // realtorKey -> realtorName
+function _cwHistoryForRealtor(realtorKey) {
+  return (state.oppData || []).filter(row => {
+    if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed won') return false;
+    if (!parseDate(getField(row, 'Disbursement Date', 'disbursement date'))) return false;
+    const cs = String(getField(row, 'Current Status', 'current status', 'current_status') || '').trim().toLowerCase();
+    if (cs.includes('archive loan')) return false;
+    if (String(getField(row, 'Lender', 'lender') || '').trim().toLowerCase().includes('city lending inc')) return false;
+    const ref = getField(row, 'Referred By', 'referred by');
+    return ref && norm(String(ref)) === realtorKey;
+  }).sort((a, b) => {
+    const da = parseDate(getField(a, 'Disbursement Date', 'disbursement date')) || 0;
+    const db = parseDate(getField(b, 'Disbursement Date', 'disbursement date')) || 0;
+    return db - da;
+  });
+}
+const _cwHistoryCols = ['#', 'Opportunity Name', 'BD Owner', 'Loan Officer', 'Branch', 'Disbursement Date', 'Loan Amount'];
+const _cwAmt = row => parseFloat(String(getField(row, 'Loan Amount', 'loan amount') || '').replace(/[$,]/g, '')) || 0;
+function _cwHistoryTable(rows, realtorKey) {
+  const g = (r, ...a) => String(getField(r, ...a) || '—').trim();
+  const head = '<tr>' + _cwHistoryCols.map(c => '<th' + (c === 'Loan Amount' ? ' style="text-align:right"' : '') + '>' + c + '</th>').join('') + '</tr>';
+  let totalAmt = 0;
+  const body = rows.map((row, i) => {
+    const amt = _cwAmt(row); totalAmt += amt;
+    return '<tr>' +
+      '<td style="color:#8899BB;font-size:10px">' + (i + 1) + '</td>' +
+      '<td style="font-weight:600;max-width:170px;overflow:hidden;text-overflow:ellipsis" title="' + g(row, 'Opportunity Name', 'opportunity name') + '">' + g(row, 'Opportunity Name', 'opportunity name') + '</td>' +
+      '<td style="font-size:11px">' + g(row, 'Opportunity Owner', 'opportunity owner') + '</td>' +
+      '<td style="font-size:11px">' + g(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer', 'loan officer') + '</td>' +
+      '<td style="font-size:11px">' + g(row, 'Branch', 'branch') + '</td>' +
+      '<td class="dt">' + fmtDate(parseDate(getField(row, 'Disbursement Date', 'disbursement date'))) + '</td>' +
+      '<td class="modal-amount" style="text-align:right">' + (amt ? '$' + amt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—') + '</td>' +
+    '</tr>';
+  }).join('');
+  const totalsRow = '<tr style="background:#001A40;font-family:\'Barlow\',sans-serif;font-weight:700">' +
+    '<td style="color:white">TOTAL</td><td style="color:white">—</td><td style="color:white">—</td><td style="color:white">—</td><td style="color:white">—</td>' +
+    '<td style="color:white">' + rows.length + ' closing' + (rows.length !== 1 ? 's' : '') + '</td>' +
+    '<td style="color:white;text-align:right">' + (totalAmt ? '$' + totalAmt.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—') + '</td>' +
+  '</tr>';
+  return '<div style="margin-bottom:8px"><button data-cw-csv="' + realtorKey + '" style="display:inline-flex;align-items:center;gap:6px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:600;color:#475569;cursor:pointer"><i class="ti ti-download"></i> Download CSV</button></div>' +
+    '<table class="modal-table"><thead>' + head + '</thead><tbody>' + body + totalsRow + '</tbody></table>';
+}
+function _cwHistoryCsv(rows) {
+  const g = (r, ...a) => String(getField(r, ...a) || '').trim();
+  let totalAmt = 0;
+  const dataRows = rows.map((row, i) => {
+    const amt = _cwAmt(row); totalAmt += amt;
+    return [i + 1, g(row, 'Opportunity Name', 'opportunity name'), g(row, 'Opportunity Owner', 'opportunity owner'), g(row, 'Loan Officers', 'loan officers', 'loan_officer', 'Loan Officer', 'loan officer'), g(row, 'Branch', 'branch'), fmtDate(parseDate(getField(row, 'Disbursement Date', 'disbursement date'))), amt || ''];
+  });
+  return [_cwHistoryCols, ...dataRows, ['TOTAL', '', '', '', '', rows.length + ' closings', totalAmt || '']];
+}
+
 function getInactiveCutoff() {
   const val = document.getElementById('pl-inactive-cutoff').value;
   if (val) return new Date(val + 'T00:00:00Z');
@@ -794,6 +847,7 @@ export function showClosedWonDetail(owner) {
   const inactiveCutoff = getInactiveCutoff();
   const opps = _cwDetailCache.get(owner);
   if (!opps || !opps.length) return;
+  _cwDrill.clear();
 
   const realtorKeys = [...new Set(opps.map(r => {
     const ref = getField(r, 'Referred By', 'referred by');
@@ -817,8 +871,10 @@ export function showClosedWonDetail(owner) {
     const daysToClose = disbDate && ratifiedDate
       ? Math.floor((disbDate - ratifiedDate) / 86400000)
       : (disbDate && createdDate ? Math.floor((disbDate - createdDate) / 86400000) : null);
-    return { row, realtorName, status: cached.status, lnNum, oppName, branch, disbDate, ratifiedDate, createdDate, daysToClose, amt, amtFmt };
+    const oppOwner = String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim();
+    return { row, realtorKey, realtorName, oppOwner, status: cached.status, lnNum, oppName, branch, disbDate, ratifiedDate, createdDate, daysToClose, amt, amtFmt };
   });
+  for (const e of enriched) { if (e.realtorKey) _cwDrill.set(e.realtorKey, e.realtorName); }
 
   const totalAmt = enriched.reduce((s, e) => {
     const a = parseFloat(getField(e.row, 'Loan Amount', 'loan amount') || 0);
@@ -837,7 +893,7 @@ export function showClosedWonDetail(owner) {
     return '<tr>' +
       '<td style="font-family:monospace;font-size:10px;color:#556080">' + e.lnNum + '</td>' +
       '<td style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + e.oppName + '">' + e.oppName + '</td>' +
-      '<td>' + e.realtorName + '</td>' +
+      '<td' + (e.realtorKey ? ' style="cursor:pointer;text-decoration:underline;color:#1D4ED8" data-drill-cw="' + e.realtorKey + '" data-cw-owner="' + e.oppOwner.replace(/"/g, '&quot;') + '"' : '') + '>' + e.realtorName + '</td>' +
       '<td>' + statusChipHtml(e.status) + '</td>' +
       '<td style="font-size:11px">' + e.branch + '</td>' +
       '<td class="dt">' + fmtDate(e.disbDate) + '</td>' +
@@ -896,4 +952,27 @@ document.addEventListener('click', e => {
     subtitle: rows.length + ' open opportunit' + (rows.length !== 1 ? 'ies' : 'y'),
     content: _drillPipeRealtorTable(rows)
   });
+});
+
+// Drill-down: Realtor en Closed Won detail → historial completo de closings (← Back)
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-drill-cw]');
+  if (!el || !el.closest('#detail-modal')) return;
+  const key = el.getAttribute('data-drill-cw');
+  const owner = el.getAttribute('data-cw-owner') || '';
+  const rows = _cwHistoryForRealtor(key);
+  if (!rows.length) return;
+  const realtorName = _cwDrill.get(key) || String(getField(rows[0], 'Referred By', 'referred by') || '').trim() || key;
+  pushModalView({
+    title: realtorName + ' — Closing History',
+    subtitle: 'All closings with ' + (owner || '—'),
+    content: _cwHistoryTable(rows, key)
+  });
+});
+
+// Descargar CSV desde el drill de Closing History
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-cw-csv]');
+  if (!el || !el.closest('#detail-modal')) return;
+  dl(_cwHistoryCsv(_cwHistoryForRealtor(el.getAttribute('data-cw-csv'))), 'closing-history.csv');
 });
