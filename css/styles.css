@@ -766,6 +766,50 @@ body{background:#FCFCFA}
 .pip-dot.active{background:#1D9E75}
 .pip-dot.inactive{background:#E65100}
 
+/* ═══════════ Autenticación (login overlay) ═══════════ */
+#auth-overlay{position:fixed;inset:0;background:#FCFCFA;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}
+#change-password-overlay{position:fixed;inset:0;background:#FCFCFA;z-index:9998;display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}
+.auth-card{background:white;border:1px solid #E2E8F0;border-radius:20px;padding:40px;width:100%;max-width:420px;box-shadow:0 4px 24px rgba(0,0,0,0.08)}
+.auth-logo{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:28px}
+.auth-logo-img{max-width:240px;width:100%;height:auto;display:block}
+.homesi-logo-mark{width:44px;height:44px;border-radius:12px;background:#FF4040;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.homesi-logo-mark svg{width:26px;height:26px}
+.auth-logo-text{display:flex;flex-direction:column}
+.auth-brand{font-family:'Barlow',sans-serif;font-size:20px;font-weight:800;color:#001A40;letter-spacing:1px}
+.auth-sub{font-size:11px;color:#94A3B8;font-weight:500}
+.auth-title{font-family:'Barlow',sans-serif;font-size:22px;font-weight:700;color:#001A40;margin:0 0 6px}
+.auth-desc{font-size:13px;color:#64748B;margin:0 0 24px}
+.auth-form{display:flex;flex-direction:column;gap:16px}
+.auth-field{display:flex;flex-direction:column;gap:5px}
+.auth-label{font-size:12px;font-weight:600;color:#334155}
+.auth-input{height:42px;border:1px solid #E2E8F0;border-radius:10px;padding:0 14px;font-size:13px;color:#0B192C;background:white;transition:border-color 0.15s;outline:none}
+.auth-input:focus{border-color:#001A40;box-shadow:0 0 0 3px rgba(0,26,64,0.08)}
+.auth-error{background:#FFF1F2;border:1px solid #FECDD3;border-radius:8px;padding:10px 14px;font-size:12px;color:#BE123C;font-weight:500}
+.auth-btn{height:44px;background:#FF3B30;color:white;border:none;border-radius:999px;font-family:'Barlow',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 12px rgba(255,59,48,0.3)}
+.auth-btn:hover{background:#CC2020;transform:translateY(-1px);box-shadow:0 6px 16px rgba(255,59,48,0.4)}
+.auth-btn:disabled{background:#94A3B8;box-shadow:none;transform:none;cursor:not-allowed}
+.auth-footer{font-size:11px;color:#94A3B8;text-align:center;margin-top:20px}
+
+/* Usuario autenticado en el header */
+.header-user{display:flex;align-items:center;gap:10px;margin-left:auto}
+.header-user-email{font-size:12px;color:#475569;font-weight:500}
+.header-logout-btn{height:30px;padding:0 14px;background:white;border:1px solid #E2E8F0;border-radius:999px;font-size:11px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.15s}
+.header-logout-btn:hover{background:#FFF1F0;border-color:#FF3B30;color:#FF3B30}
+
+/* CAMBIO 1 — Sign Out clickeable en toda su área (el .stripe decorativo tapaba los clics) */
+.header-user{position:relative;z-index:100;pointer-events:all}
+.header-logout-btn{position:relative;z-index:100;pointer-events:all;cursor:pointer}
+.stripe{pointer-events:none}
+
+/* CAMBIO 2 — Sin parpadeo en headers de tabla */
+table thead th{position:relative;transition:background 0.15s ease,color 0.15s ease;user-select:none}
+table thead th::after{content:' \2195';opacity:0;font-size:10px;position:absolute;right:6px;top:50%;transform:translateY(-50%);transition:opacity 0.15s ease}
+table thead th:hover::after{opacity:0.6}
+table thead th .sort-icon,table thead th [class*="sort"]{display:inline-block;width:12px;opacity:0;transition:opacity 0.15s ease}
+table thead th:hover .sort-icon,table thead th:hover [class*="sort"]{opacity:0.6}
+/* Causa raíz del parpadeo: la columna sticky del header no debe aclararse en hover de fila */
+thead tr:hover .sticky-col,thead tr:hover .sticky-col-3{background:#1E3A5F}
+
 /* Color de selección en dropdowns (paleta de marca navy) */
 select option:checked,select option:focus{background:#001A40;color:white}
 select[multiple] option:checked{background:linear-gradient(#001A40,#001A40);color:white}

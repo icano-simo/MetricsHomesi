@@ -20,6 +20,7 @@ import { initLoPipeline, renderLoPipeline, renderLoCwSection, clearLoPipelineFil
 import { initLoTrends, renderLoTrends } from './lo-trends.js';
 import { initLoPerformance, renderLoPerformance } from './lo-performance.js';
 import { initMeetingsReview, renderMeetingsReview, clearMrFilters, markMeetingParticipant, loadMeetingReviews, saveParticipantLabel, toggleDoesNotCount } from './meetings-review.js';
+import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword } from './auth.js';
 
 let _zoomLoading = false;
 
@@ -534,4 +535,123 @@ document.getElementById('inactive-from').value = infStr;
 document.getElementById('lo-cutoff-date').value = todayStr;
 document.getElementById('lo-inactive-from').value = infStr;
 
-initApp();
+// ── Autenticación (Supabase Auth) ──
+async function checkAuth() {
+  const session = await getSession();
+  if (!session) {
+    document.getElementById('auth-overlay').style.display = 'flex';
+    setupLoginForm();
+    return false;
+  }
+  const email = (session.user && session.user.email) || '';
+  if (!email.endsWith('@supremelending.com')) {
+    await signOut();
+    return false;
+  }
+  // Verifica si debe cambiar contraseña (primer login)
+  const mustChange = await mustChangePassword();
+  if (mustChange) {
+    document.getElementById('auth-overlay').style.display = 'none';
+    showChangePasswordOverlay();
+    return false;
+  }
+  document.getElementById('auth-overlay').style.display = 'none';
+  document.getElementById('app-container').style.display = '';
+  showUserInHeader(email);
+  return true;
+}
+
+function setupLoginForm() {
+  const btn = document.getElementById('auth-submit');
+  const emailInput = document.getElementById('auth-email');
+  const passInput = document.getElementById('auth-password');
+  passInput.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+  btn.addEventListener('click', async () => {
+    const email = emailInput.value.trim();
+    const password = passInput.value;
+    if (!email || !password) { showAuthError('Please enter your email and password.'); return; }
+    if (!email.endsWith('@supremelending.com')) { showAuthError('Only @supremelending.com accounts are authorized.'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Signing in...';
+    try {
+      await signIn(email, password);
+      window.location.reload();
+    } catch (err) {
+      showAuthError(err.message === 'Invalid login credentials' ? 'Incorrect email or password.' : err.message);
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+    }
+  });
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function showUserInHeader(email) {
+  const header = document.querySelector('.topbar');
+  if (!header || document.querySelector('.header-user')) return;
+  const userDiv = document.createElement('div');
+  userDiv.className = 'header-user';
+  userDiv.innerHTML = '<span class="header-user-email">' + email + '</span>' +
+    '<button class="header-logout-btn" id="logout-btn">Sign Out</button>';
+  header.appendChild(userDiv);
+  document.getElementById('logout-btn').addEventListener('click', async () => { await signOut(); });
+}
+
+function showChangePasswordOverlay() {
+  document.getElementById('change-password-overlay').style.display = 'flex';
+
+  const btn = document.getElementById('change-pw-submit');
+  const newPw = document.getElementById('new-password');
+  const confirmPw = document.getElementById('confirm-password');
+  const errEl = document.getElementById('change-pw-error');
+
+  confirmPw.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+
+  btn.addEventListener('click', async () => {
+    const pw1 = newPw.value;
+    const pw2 = confirmPw.value;
+    errEl.style.display = 'none';
+
+    if (pw1.length < 8) {
+      errEl.textContent = 'Password must be at least 8 characters.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (pw1 !== pw2) {
+      errEl.textContent = 'Passwords do not match.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      await updatePassword(pw1);
+      document.getElementById('change-password-overlay').style.display = 'none';
+      document.getElementById('app-container').style.display = '';
+      const user = await getCurrentUser();
+      showUserInHeader(user.email);
+      await initApp();
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Set Password & Enter';
+    }
+  });
+}
+
+// Bootstrap: verifica sesión antes de iniciar la app
+function bootApp() {
+  checkAuth().then(authed => { if (authed) initApp(); });
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootApp);
+} else {
+  bootApp();
+}

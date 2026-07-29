@@ -14,6 +14,64 @@
 
 <body>
 
+  <!-- ═══════════════ AUTH OVERLAY ═══════════════ -->
+  <div id="auth-overlay" style="display:flex">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <img class="auth-logo-img" src="/HOMESI_Logo1_Color.jpg" alt="HOMESÍ — Powered by Supreme Lending">
+      </div>
+
+      <div class="auth-form">
+        <div class="auth-field">
+          <label class="auth-label">Email</label>
+          <input id="auth-email" type="email" class="auth-input" placeholder="you@supremelending.com" autocomplete="email" />
+        </div>
+
+        <div class="auth-field">
+          <label class="auth-label">Password</label>
+          <input id="auth-password" type="password" class="auth-input" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+
+        <div id="auth-error" class="auth-error" style="display:none"></div>
+
+        <button id="auth-submit" class="auth-btn">Sign In</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ CHANGE PASSWORD OVERLAY ═══════════════ -->
+  <div id="change-password-overlay" style="display:none">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <img class="auth-logo-img" src="/HOMESI_Logo1_Color.jpg" alt="HOMESÍ — Powered by Supreme Lending">
+      </div>
+
+      <h2 class="auth-title">Set your password</h2>
+      <p class="auth-desc">This is your first login. Please set a new password to continue.</p>
+
+      <div class="auth-form">
+        <div class="auth-field">
+          <label class="auth-label">New Password</label>
+          <input id="new-password" type="password" class="auth-input" placeholder="Min. 8 characters" autocomplete="new-password" />
+        </div>
+
+        <div class="auth-field">
+          <label class="auth-label">Confirm Password</label>
+          <input id="confirm-password" type="password" class="auth-input" placeholder="Repeat your password" autocomplete="new-password" />
+        </div>
+
+        <div id="change-pw-error" class="auth-error" style="display:none"></div>
+
+        <button id="change-pw-submit" class="auth-btn">Set Password &amp; Enter</button>
+      </div>
+
+      <p class="auth-footer">Choose a strong password. You will use it every time you sign in.</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════ APP CONTAINER (oculto hasta validar sesión) ═══════════════ -->
+  <div id="app-container" style="display:none">
+
   <!-- ═══════════════ SIDEBAR ═══════════════ -->
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -708,6 +766,7 @@
 
     </div><!-- /main -->
   </div><!-- /app-wrap -->
+  </div><!-- /app-container -->
 
   <!-- ═══════════════ SETTINGS PANEL ═══════════════ -->
   <div class="settings-overlay" id="settings-overlay" onclick="closeSettings()"></div>
