@@ -326,16 +326,16 @@ function calcCalls(ownerName, startDate, endDate) {
     const d = parseDate(r.call_date);
     return d && d >= startDate && d <= endDate;
   });
-  const totalCalls = filtered.length;
-  const effectiveCalls = filtered.filter(r => r.effective === 1 || r.effective === 1.0).length;
+  const totalCalls = filtered.reduce((s, r) => s + (r.total_calls || 0), 0);
+  const effectiveCalls = filtered.reduce((s, r) => s + (r.effective_calls || 0), 0);
   const effectivenessRate = totalCalls > 0 ? Math.round((effectiveCalls / totalCalls * 100) * 10) / 10 : 0;
   const realtorFiltered = filtered.filter(r => norm(r.record_type || '') === 'realtor');
-  const realtorCalls = realtorFiltered.length;
-  const realtorEffective = realtorFiltered.filter(r => r.effective === 1 || r.effective === 1.0).length;
+  const realtorCalls = realtorFiltered.reduce((s, r) => s + (r.total_calls || 0), 0);
+  const realtorEffective = realtorFiltered.reduce((s, r) => s + (r.effective_calls || 0), 0);
   const byType = new Map();
   for (const row of filtered) {
     const rt = String(row.record_type || '').trim() || 'Unknown';
-    byType.set(rt, (byType.get(rt) || 0) + 1);
+    byType.set(rt, (byType.get(rt) || 0) + (row.total_calls || 0));
   }
   return { totalCalls, effectiveCalls, effectivenessRate, realtorCalls, realtorEffective, byType };
 }

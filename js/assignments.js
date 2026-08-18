@@ -38,34 +38,8 @@ export function loadSfReference(inputEl) {
         }
       }
       state.realtorOwnerMap = new Map([...dedupMap.entries()].map(([k, r]) => [k, { owner: r.owner, name: r.realtor_name, branch: r.branch, loan_officers: r.loan_officers, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date, opportunity_record_type: r.opportunity_record_type, stage: r.stage, created_date: r.created_date }]));
-      const dbRows = [...dedupMap.values()];
       // Refresh table immediately so SF Suggestion column appears right away
       renderUnassigned();
-      if (statusEl) statusEl.textContent = '⏳ Saving ' + dbRows.length + ' records to Supabase…';
-      // Save to Supabase — handled separately so a network error doesn't hide the column
-      try {
-        const batchSize = 200;
-        for (let i = 0; i < dbRows.length; i += batchSize) {
-          await sbFetch('realtor_owner_map?on_conflict=realtor_key', {
-            method: 'POST',
-            prefer: 'return=minimal,resolution=merge-duplicates',
-            headers: { 'Prefer': 'return=minimal,resolution=merge-duplicates' },
-            body: JSON.stringify(dbRows.slice(i, i + batchSize))
-          });
-        }
-        // Save metadata to upload_meta (same pattern as leads/opp uploads)
-        try {
-          await sbFetch('upload_meta?file_type=eq.realtor_map', { method: 'DELETE', prefer: 'return=minimal', headers: { 'Prefer': 'return=minimal' } });
-          await sbFetch('upload_meta', { method: 'POST', prefer: 'return=minimal', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify({ file_type: 'realtor_map', file_name: file.name, row_count: state.realtorOwnerMap.size }) });
-        } catch (_) { /* non-critical */ }
-        // Persistent success — never cleared
-        const today = fmtDate(new Date());
-        if (statusEl) statusEl.innerHTML =
-          '<span style="color:#1A9E5A;font-weight:700">Uploaded &#10003;</span>' +
-          ' &nbsp;' + file.name + ' &nbsp;·&nbsp; ' + state.realtorOwnerMap.size + ' rows &nbsp;·&nbsp; ' + today;
-      } catch (e) {
-        if (statusEl) statusEl.textContent = 'Saved in memory but Supabase error: ' + e.message;
-      }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Error reading file: ' + e.message;
     }

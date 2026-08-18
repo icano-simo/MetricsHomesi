@@ -1,10 +1,10 @@
 import { state } from './state.js';
 import { bus } from './events.js';
-import { sbFetch, uploadToSupabase, uploadCalls, uploadLoReference, uploadZoomMeetings, loadCallsData, loadZoomData, loadDataFromSupabase } from './supabase.js';
+import { sbFetch, uploadZoomMeetings, loadCallsData, loadZoomData, loadDataFromSupabase } from './supabase.js';
 import { runCalc } from './calc.js';
 import { setMode, renderTable, populateFilters, renderSummary, srt, onModeSelect, showTab } from './ui.js';
 import { renderScorecard, refreshScorecard, clearScorecardFilters, renderRankings } from './scorecard.js';
-import { renderAssignCards, clearAssignFilters, confirmAssign, unconfirm, updateAssign, saveAllAssignments, showAssignView, renderUnassigned, saveUnassigned, loadSfReference, applyUaSuggestion } from './assignments.js';
+import { renderAssignCards, clearAssignFilters, confirmAssign, unconfirm, updateAssign, saveAllAssignments, showAssignView, renderUnassigned, saveUnassigned, applyUaSuggestion } from './assignments.js';
 import { renderLog } from './log.js';
 import { exportCSV, exportMasterCSV, exportLog, exportManualAssignments, dl } from './export.js';
 import { showScorecardDetail, showLeadDetail, showOppDetail, showAllLeadsForRealtor, showConvertedLeadsDetail, openModal, closeModal } from './modal.js';
@@ -26,10 +26,6 @@ let _zoomLoading = false;
 
 // card-id suffix for each file type (used for progress bars and status labels)
 const TYPE_TO_CARD = {
-  leads: 'leads',
-  opp: 'opp',
-  calls: 'calls',
-  lo_reference: 'loref',
   zoom: 'zoom'
 };
 
@@ -131,21 +127,7 @@ function handleFile(e, type) {
       const wb = XLSX.read(ev.target.result, { type: 'binary', cellDates: false });
       let data;
 
-      if (type === 'leads') {
-        const sn = wb.SheetNames.find(n => /lead|refer/i.test(n)) || wb.SheetNames[0];
-        data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
-        state.leadsData = data;
-      } else if (type === 'opp') {
-        const sn = wb.SheetNames.find(n => /opp/i.test(n)) || wb.SheetNames[1] || wb.SheetNames[0];
-        data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
-        state.oppData = data;
-      } else if (type === 'calls') {
-        const sn = wb.SheetNames[0];
-        data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
-      } else if (type === 'lo_reference') {
-        const sn = wb.SheetNames[0];
-        data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
-      } else if (type === 'zoom') {
+      if (type === 'zoom') {
         const sn = wb.SheetNames[0];
         data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
       }
@@ -153,23 +135,7 @@ function handleFile(e, type) {
       setProgress(cardId, 15);
 
       if (state.dbConnected) {
-        if (type === 'leads' || type === 'opp') {
-          await uploadToSupabase(type, data, file.name, {
-            onProgress: (t, pct) => setProgress(cardId, pct),
-            onStatus: setStatus
-          });
-        } else if (type === 'calls') {
-          await uploadCalls(data, file.name, {
-            onProgress: (t, pct) => setProgress(cardId, pct),
-            onStatus: setStatus
-          });
-        } else if (type === 'lo_reference') {
-          await uploadLoReference(data, file.name, {
-            onProgress: (t, pct) => setProgress(cardId, pct),
-            onStatus: setStatus
-          });
-          await loadLoReferenceMap();
-        } else if (type === 'zoom') {
+        if (type === 'zoom') {
           const year = document.getElementById('zoom-upload-year').value;
           const month = document.getElementById('zoom-upload-month').value;
           const monthKey = year + '-' + month;
@@ -415,7 +381,7 @@ async function initApp() {
           let offset = 0;
           state.realtorOwnerMap = new Map();
           while (true) {
-            const rows = await sbFetch('realtor_owner_map?select=*&limit=' + PAGE + '&offset=' + offset);
+            const rows = await sbFetch('realtor_owner_map_v2?select=*&limit=' + PAGE + '&offset=' + offset + '&order=realtor_key.asc');
             if (!rows || !rows.length) break;
             for (const r of rows) {
               if (r.realtor_key && r.owner) state.realtorOwnerMap.set(r.realtor_key, { owner: r.owner, name: r.realtor_name, branch: r.branch, loan_officers: r.loan_officers, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date, opportunity_record_type: r.opportunity_record_type, stage: r.stage, created_date: r.created_date });
@@ -494,7 +460,7 @@ Object.assign(window, {
   toggleCalcParams,
   clearScorecardFilters, refreshScorecard, renderRankings,
   renderAssignCards, saveAllAssignments, clearAssignFilters, confirmAssign, unconfirm, updateAssign,
-  showAssignView, renderUnassigned, saveUnassigned, loadSfReference, applyUaSuggestion,
+  showAssignView, renderUnassigned, saveUnassigned, applyUaSuggestion,
   exportCSV, exportMasterCSV, exportLog, exportManualAssignments, dl,
   closeModal, showAllLeadsForRealtor,
   handleFile,

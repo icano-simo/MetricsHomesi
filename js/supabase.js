@@ -1,3 +1,16 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Origen de datos (a partir del cambio a tablas _v2)
+//
+// Las tablas leads_v2, opportunities_v2, calls_daily y realtor_owner_map_v2 las
+// llena solas el job `simo-sync` desde BigQuery cada día a las 08:00 UTC.
+// Ya no hay cargas manuales de estos datos.
+//
+// La clave anon (SB_KEY) tiene únicamente permiso de SELECT sobre las tablas _v2:
+// cualquier intento de escritura (INSERT/UPDATE/DELETE) desde el cliente fallará
+// por permisos. Solo lectura desde aquí.
+//
+// zoom_meetings sigue siendo carga manual (uploadZoomMeetings).
+// ─────────────────────────────────────────────────────────────────────────────
 import { SB_URL, SB_KEY } from './config.js';
 import { getField, parseDate, fmtDB, norm } from './utils.js';
 import { state } from './state.js';
@@ -26,118 +39,6 @@ export async function sbFetch(path, opts = {}) {
   const text = await res.text();
   if (!text || text.trim() === '') return null;
   try { return JSON.parse(text); } catch (_) { return null; }
-}
-
-export async function uploadToSupabase(type, data, fileName, { onProgress = () => {}, onStatus = () => {} } = {}) {
-  const tbl = type === 'leads' ? 'leads' : 'opportunities';
-  try {
-    await sbFetch(tbl + '?id=neq.0', { method: 'DELETE', prefer: 'return=minimal', headers: { 'Prefer': 'return=minimal' } });
-  } catch (e) {
-    console.log('Delete note:', e.message);
-  }
-  onProgress(type, 30);
-  const rows = data.map(row => {
-    if (type === 'leads') return {
-      referred_by: String(getField(row, 'Referred By', 'referred by', 'referred_by') || '').trim() || 'Unknown',
-      lead_owner: String(getField(row, 'Lead Owner', 'lead owner', 'owner') || '').trim() || null,
-      branch: String(getField(row, 'Branch', 'branch') || '').trim() || null,
-      create_date: fmtDB(parseDate(getField(row, 'Created Date', 'Create Date', 'created date', 'create date'))),
-      first_name: String(getField(row, 'First Name', 'first name') || '').trim() || null,
-      last_name: String(getField(row, 'Last Name', 'last name') || '').trim() || null,
-      lead_status: String(getField(row, 'Lead Status', 'lead status') || '').trim() || null,
-      converted: (() => { const v = getField(row, 'Converted', 'converted'); return v === true || String(v || '').trim().toLowerCase() === 'true'; })()
-    };
-    return {
-      referred_by: String(getField(row, 'Referred By', 'referred by', 'referred_by') || '').trim() || 'Unknown',
-      stage: String(getField(row, 'Stage', 'stage') || '').trim() || null,
-      current_status: String(getField(row, 'Current Status', 'current status', 'current_status') || '').trim() || null,
-      current_milestone: String(getField(row, 'Current Milestone', 'current milestone') || '').trim() || null,
-      disbursement_date: fmtDB(parseDate(getField(row, 'Disbursement Date', 'disbursement date'))),
-      pre_approved_date: fmtDB(parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre approved date'))),
-      pre_qualified_date: fmtDB(parseDate(getField(row, 'Pre-Qualified Doc requested Date', 'pre-qualified doc requested date', 'pre_qualified_date'))) || null,
-      ratified_date: fmtDB(parseDate(getField(row, 'Ratified Date', 'ratified date'))),
-      est_closing_date: fmtDB(parseDate(getField(row, 'Est. Closing Date', 'est. closing date', 'Estimated Closing Date', 'estimated closing date', 'Close Date', 'close date'))),
-      opportunity_owner: String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim() || null,
-      opportunity_name: String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim() || null,
-      loan_number: String(getField(row, 'Loan #', 'loan #') || '').trim() || null,
-      loan_officer: String(getField(row, 'Loan Officers', 'Loan Officer', 'loan officers', 'loan officer') || '').trim() || null,
-      loan_amount: getField(row, 'Loan Amount', 'loan amount') || null,
-      loan_status: String(getField(row, 'Loan Status', 'loan status') || '').trim() || null,
-      loan_folder: String(getField(row, 'Loan Folder', 'loan folder') || '').trim() || null,
-      branch: String(getField(row, 'Branch', 'branch') || '').trim() || null,
-      account_name: String(getField(row, 'Account Name', 'account name') || '').trim() || null,
-      opportunity_team: String(getField(row, 'Opportunity Team', 'opportunity team') || '').trim() || null,
-      lender: String(getField(row, 'Lender', 'lender') || '').trim() || null,
-      strategy: String(getField(row, 'Strategy', 'strategy') || '').trim() || null,
-      healthiness: String(getField(row, 'Healthiness', 'healthiness') || '').trim() || null,
-      created_date: fmtDB(parseDate(getField(row, 'Created Date', 'created date')))
-    };
-  }).filter(r => r.referred_by);
-  onProgress(type, 50);
-  const batchSize = 200;
-  const totalBatches = Math.ceil(rows.length / batchSize);
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize);
-    const batchNum = Math.floor(i / batchSize) + 1;
-    onStatus('load', '⏳ Uploading ' + type + ': batch ' + batchNum + ' of ' + totalBatches + ' (' + rows.length + ' rows)...');
-    try {
-      await sbFetch(tbl, { method: 'POST', prefer: 'return=minimal', body: JSON.stringify(batch) });
-    } catch (e) {
-      throw new Error('Error in batch ' + batchNum + ': ' + e.message);
-    }
-    onProgress(type, 50 + Math.round((i / rows.length) * 45));
-  }
-  await sbFetch('upload_meta?file_type=eq.' + type, { method: 'DELETE', prefer: 'return=minimal' });
-  await sbFetch('upload_meta', { method: 'POST', prefer: 'return=minimal', body: JSON.stringify({ file_type: type, file_name: fileName, row_count: rows.length }) });
-  onProgress(type, 95);
-}
-
-export async function uploadCalls(data, fileName, { onProgress = () => {}, onStatus = () => {} } = {}) {
-  try {
-    await sbFetch('calls?id=neq.0', { method: 'DELETE', prefer: 'return=minimal', headers: { 'Prefer': 'return=minimal' } });
-  } catch (e) { console.log('calls delete:', e.message); }
-  onProgress('calls', 30);
-  const rows = data.map(row => ({
-    call_date: fmtDB(parseDate(getField(row, 'Date', 'date'))),
-    assigned_to: String(getField(row, 'Assigned', 'assigned') || '').trim() || null,
-    effective: (() => { const v = getField(row, 'Effective Calls', 'effective calls'); return v === null || v === undefined ? null : parseFloat(v) || 0; })(),
-    record_type: String(getField(row, 'RecordType related', 'recordtype related', 'RecordType Related', 'record_type') || '').trim() || null
-  })).filter(r => r.call_date);
-  const batchSize = 200;
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batchNum = Math.floor(i / batchSize) + 1;
-    onStatus('load', '⏳ Uploading calls: batch ' + batchNum + ' of ' + Math.ceil(rows.length / batchSize));
-    await sbFetch('calls', { method: 'POST', prefer: 'return=minimal', body: JSON.stringify(rows.slice(i, i + batchSize)) });
-    onProgress('calls', 50 + Math.round((i / rows.length) * 45));
-  }
-  await sbFetch('upload_meta?file_type=eq.calls', { method: 'DELETE', prefer: 'return=minimal', headers: { 'Prefer': 'return=minimal' } });
-  await sbFetch('upload_meta', { method: 'POST', prefer: 'return=minimal', body: JSON.stringify({ file_type: 'calls', file_name: fileName, row_count: rows.length }) });
-  onProgress('calls', 95);
-  return rows.length;
-}
-
-export async function uploadLoReference(data, fileName, { onProgress = () => {}, onStatus = () => {} } = {}) {
-  try {
-    await sbFetch('lo_reference?alias=not.is.null', { method: 'DELETE', prefer: 'return=minimal', headers: { 'Prefer': 'return=minimal' } });
-  } catch (e) { console.log('lo_reference delete:', e.message); }
-  onProgress('loref', 30);
-  const raw = data.map(row => ({
-    alias: norm(String(getField(row, 'Name (original name)', 'name (original name)') || '').trim()),
-    canonical_name: String(getField(row, 'LO', 'lo') || '').trim() || null
-  })).filter(r => r.alias);
-  const rows = [...new Map(raw.map(r => [r.alias, r])).values()];
-  const batchSize = 200;
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batchNum = Math.floor(i / batchSize) + 1;
-    onStatus('load', '⏳ Uploading LO reference: batch ' + batchNum + ' of ' + Math.ceil(rows.length / batchSize) + ' (' + rows.length + ' rows)...');
-    await sbFetch('lo_reference', { method: 'POST', prefer: 'return=minimal', body: JSON.stringify(rows.slice(i, i + batchSize)) });
-    onProgress('loref', 30 + Math.round((i / rows.length) * 60));
-  }
-  onStatus('load', '⏳ Saving LO reference metadata…');
-  await sbFetch('upload_meta?file_type=eq.lo_reference', { method: 'DELETE', prefer: 'return=minimal', headers: { 'Prefer': 'return=minimal' } });
-  await sbFetch('upload_meta', { method: 'POST', prefer: 'return=minimal', body: JSON.stringify({ file_type: 'lo_reference', file_name: fileName, row_count: rows.length }) });
-  onProgress('loref', 95);
-  return rows.length;
 }
 
 export async function uploadZoomMeetings(data, monthKey, fileName, { onProgress = () => {}, onStatus = () => {} } = {}) {
@@ -176,7 +77,7 @@ export async function loadCallsData() {
   const pageSize = 1000;
   let from = 0;
   while (true) {
-    const page = await sbFetch('calls?select=*&limit=' + pageSize + '&offset=' + from + '&order=id.asc');
+    const page = await sbFetch('calls_daily?select=*&limit=' + pageSize + '&offset=' + from + '&order=call_date.asc,bd_id.asc,record_type.asc');
     if (!page || !page.length) break;
     all.push(...page);
     if (page.length < pageSize) break;
@@ -201,7 +102,7 @@ export async function loadZoomData() {
 
 export async function loadDataFromSupabase({ onStatus = () => {} } = {}) {
   onStatus('load', '⏳ Querying Supabase...');
-  async function fetchAll(table) {
+  async function fetchAll(table, orderCol) {
     const pageSize = 1000;
 
     // PASO 1 — Obtener el total de filas con una sola request
@@ -223,7 +124,7 @@ export async function loadDataFromSupabase({ onStatus = () => {} } = {}) {
 
     // Si no se pudo obtener el total, cae al método secuencial original
     if (!total || isNaN(total)) {
-      return fetchAllSequential(table);
+      return fetchAllSequential(table, orderCol);
     }
 
     // PASO 2 — Calcular todos los offsets
@@ -235,7 +136,7 @@ export async function loadDataFromSupabase({ onStatus = () => {} } = {}) {
     // PASO 3 — Disparar todas las páginas en paralelo
     const pages = await Promise.all(
       offsets.map(offset =>
-        sbFetch(table + '?select=*&limit=' + pageSize + '&offset=' + offset + '&order=id.asc')
+        sbFetch(table + '?select=*&limit=' + pageSize + '&offset=' + offset + '&order=' + orderCol + '.asc')
       )
     );
 
@@ -244,12 +145,12 @@ export async function loadDataFromSupabase({ onStatus = () => {} } = {}) {
   }
 
   // Fallback secuencial (el original) renombrado
-  async function fetchAllSequential(table) {
+  async function fetchAllSequential(table, orderCol) {
     const all = [];
     const pageSize = 1000;
     let from = 0;
     while (true) {
-      const page = await sbFetch(table + '?select=*&limit=' + pageSize + '&offset=' + from + '&order=id.asc');
+      const page = await sbFetch(table + '?select=*&limit=' + pageSize + '&offset=' + from + '&order=' + orderCol + '.asc');
       if (!page || !page.length) break;
       all.push(...page);
       if (page.length < pageSize) break;
@@ -257,7 +158,7 @@ export async function loadDataFromSupabase({ onStatus = () => {} } = {}) {
     }
     return all;
   }
-  const [leads, opps] = await Promise.all([fetchAll('leads'), fetchAll('opportunities')]);
+  const [leads, opps] = await Promise.all([fetchAll('leads_v2', 'lead_id'), fetchAll('opportunities_v2', 'opportunity_id')]);
   onStatus('load', '⏳ Processing ' + leads.length + ' leads and ' + opps.length + ' opportunities...');
   const leadsData = leads.map(r => ({
     'Referred By': r.referred_by, 'Lead Owner': r.lead_owner, 'Branch': r.branch,

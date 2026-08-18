@@ -387,61 +387,10 @@
       <div id="view-data-upload" class="hidden">
         <div class="view-header">
           <div class="view-title"><i class="ti ti-upload" style="color:var(--hs-red)"></i> Data Upload</div>
-          <div class="view-subtitle">Manage all data sources for the dashboard. Each upload overwrites previous data for that source.</div>
+          <div class="view-subtitle">Upload monthly Zoom meeting exports here. Leads, opportunities, calls and realtor data now sync automatically every day from BigQuery — no manual upload needed.</div>
         </div>
 
         <div class="upload-cards-grid">
-
-          <!-- Leads -->
-          <div class="uz" id="uz-leads" onclick="document.getElementById('fi-leads').click()">
-            <input type="file" id="fi-leads" accept=".xlsx,.csv" style="display:none" onchange="handleFile(event,'leads')">
-            <div class="uz-icon"><i class="ti ti-users"></i></div>
-            <div class="uz-title" id="uz-leads-lbl">Leads</div>
-            <div class="uz-sub">Salesforce leads export<span class="uz-desc">Overwrites everything on upload</span></div>
-            <div class="uz-saved hidden" id="uz-leads-saved"></div>
-            <div class="progress-bar hidden" id="pb-leads"><div class="progress-fill" id="pf-leads" style="width:0%"></div></div>
-          </div>
-
-          <!-- Opportunities -->
-          <div class="uz" id="uz-opp" onclick="document.getElementById('fi-opp').click()">
-            <input type="file" id="fi-opp" accept=".xlsx,.csv" style="display:none" onchange="handleFile(event,'opp')">
-            <div class="uz-icon"><i class="ti ti-building-community"></i></div>
-            <div class="uz-title" id="uz-opp-lbl">Opportunities</div>
-            <div class="uz-sub">Salesforce opportunities export<span class="uz-desc">Overwrites everything on upload</span></div>
-            <div class="uz-saved hidden" id="uz-opp-saved"></div>
-            <div class="progress-bar hidden" id="pb-opp"><div class="progress-fill" id="pf-opp" style="width:0%"></div></div>
-          </div>
-
-          <!-- Realtor Owner Map -->
-          <div class="uz" id="uz-realtor-map" onclick="document.getElementById('fi-realtor-map').click()">
-            <input type="file" id="fi-realtor-map" accept=".xlsx,.xls" style="display:none" onchange="loadSfReference(this)">
-            <div class="uz-icon"><i class="ti ti-map-pin"></i></div>
-            <div class="uz-title" id="uz-realtor-map-lbl">Realtor Owner Map</div>
-            <div class="uz-sub">Realtor to BD assignment reference<span class="uz-desc">Overwrites everything on upload</span></div>
-            <span id="sf-ref-status" style="font-size:10px;color:#667799;display:block;margin-top:6px;min-height:14px"></span>
-            <div class="uz-saved hidden" id="uz-realtor-map-saved"></div>
-            <div class="progress-bar hidden" id="pb-realtor-map"><div class="progress-fill" id="pf-realtor-map" style="width:0%"></div></div>
-          </div>
-
-          <!-- Calls -->
-          <div class="uz" id="uz-calls" onclick="document.getElementById('fi-calls').click()">
-            <input type="file" id="fi-calls" accept=".xlsx,.csv" style="display:none" onchange="handleFile(event,'calls')">
-            <div class="uz-icon"><i class="ti ti-phone"></i></div>
-            <div class="uz-title" id="uz-calls-lbl">Calls</div>
-            <div class="uz-sub">BD call activity — full year file<span class="uz-desc">Overwrites everything on upload</span></div>
-            <div class="uz-saved hidden" id="uz-calls-saved"></div>
-            <div class="progress-bar hidden" id="pb-calls"><div class="progress-fill" id="pf-calls" style="width:0%"></div></div>
-          </div>
-
-          <!-- LO Reference -->
-          <div class="uz" id="uz-loref" onclick="document.getElementById('fi-loref').click()">
-            <input type="file" id="fi-loref" accept=".xlsx,.xls" style="display:none" onchange="handleFile(event,'lo_reference')">
-            <div class="uz-icon"><i class="ti ti-id-badge"></i></div>
-            <div class="uz-title" id="uz-loref-lbl">LO Reference</div>
-            <div class="uz-sub">Loan Officer name aliases for Zoom<span class="uz-desc">Overwrites everything on upload</span></div>
-            <div class="uz-saved hidden" id="uz-loref-saved"></div>
-            <div class="progress-bar hidden" id="pb-loref"><div class="progress-fill" id="pf-loref" style="width:0%"></div></div>
-          </div>
 
           <!-- Zoom Meetings -->
           <div class="uz" id="uz-zoom" style="cursor:default">
