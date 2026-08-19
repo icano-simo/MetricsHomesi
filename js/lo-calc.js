@@ -81,11 +81,12 @@ async function _runLoCalc() {
     const loStr = loRaw ? getNormLO(loRaw) : '';
     const branchStr = String(row[branchField] || '').trim();
 
-    if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], los: new Map(), allLos: new Map(), branches: new Map(), convertedCount: 0 });
+    if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], los: new Map(), allLos: new Map(), branches: new Map(), allBranches: new Map(), convertedCount: 0 });
     const rec = byRef.get(key);
     if (cd) {
       rec.allDates.push(cd);
       if (loStr) rec.allLos.set(loStr, (rec.allLos.get(loStr) || 0) + 1);
+      if (branchStr) rec.allBranches.set(branchStr, (rec.allBranches.get(branchStr) || 0) + 1);
       if (cd >= floorDate && cd <= cutoff) {
         rec.recentDates.push(cd);
         const conv = row[convertedField];
@@ -188,9 +189,12 @@ async function _runLoCalc() {
         const canonical = allowedNorm.get(norm(oppLoMap.get(key)));
         if (canonical) assignedOwner = canonical;
       }
-      if (rec.branches.size > 0) {
+      const branchSrc = rec.branches.size > 0 ? rec.branches : rec.allBranches;
+      if (branchSrc.size > 0) {
         let best = '', bestN = -1;
-        for (const [b, n] of rec.branches.entries()) if (n > bestN) { bestN = n; best = b; }
+        for (const [b, n] of branchSrc.entries()) {
+          if (n > bestN || (n === bestN && b < best)) { bestN = n; best = b; }
+        }
         assignedBranch = best;
       }
     }
