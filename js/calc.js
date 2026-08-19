@@ -58,12 +58,15 @@ async function _runCalc() {
     const cd = parseDate(getField(row, 'Created Date', 'Create Date', 'created date', 'create date'));
     const ownerStr = String(getField(row, 'Lead Owner', 'lead owner', 'owner') || '').trim();
     const branchStr = String(getField(row, 'Branch', 'branch') || '').trim();
-    if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], owners: new Map(), allOwners: new Map(), branches: new Map(), allBranches: new Map(), convertedCount: 0 });
+    if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], owners: new Map(), allOwners: new Map(), branches: new Map(), lastBranch: '', lastBranchDate: null, convertedCount: 0 });
     const rec = byRef.get(key);
     if (cd) {
       rec.allDates.push(cd);
       if (ownerStr) rec.allOwners.set(ownerStr, (rec.allOwners.get(ownerStr) || 0) + 1);
-      if (branchStr) rec.allBranches.set(branchStr, (rec.allBranches.get(branchStr) || 0) + 1);
+      if (branchStr && (!rec.lastBranchDate || cd > rec.lastBranchDate ||
+          (cd.getTime() === rec.lastBranchDate.getTime() && branchStr < rec.lastBranch))) {
+        rec.lastBranch = branchStr; rec.lastBranchDate = cd;
+      }
       if (cd >= floorDate && cd <= cutoff) {
         rec.recentDates.push(cd);
         const conv = getField(row, 'Converted', 'converted');
@@ -122,13 +125,14 @@ async function _runCalc() {
     } else {
       if (rec.owners.size > 0) { let best = '', bestN = -1; for (const [o, n] of rec.owners.entries()) { const c = allowedNorm.get(norm(o)); if (c && n > bestN) { bestN = n; best = c; } } if (bestN > -1) assignedOwner = best; }
       if (!assignedOwner && oppOwnerMap.has(key)) { const c = allowedNorm.get(norm(oppOwnerMap.get(key))); if (c) assignedOwner = c; }
-      const branchSrc = rec.branches.size > 0 ? rec.branches : rec.allBranches;
-      if (branchSrc.size > 0) {
+      if (rec.branches.size > 0) {
         let best = '', bestN = -1;
-        for (const [b, n] of branchSrc.entries()) {
+        for (const [b, n] of rec.branches.entries()) {
           if (n > bestN || (n === bestN && b < best)) { bestN = n; best = b; }
         }
         assignedBranch = best;
+      } else if (rec.lastBranch) {
+        assignedBranch = rec.lastBranch;
       }
     }
 
