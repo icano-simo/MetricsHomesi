@@ -14,11 +14,15 @@
 import { SB_URL, SB_KEY } from './config.js';
 import { getField, parseDate, fmtDB, norm } from './utils.js';
 import { state } from './state.js';
+import { getAccessToken } from './auth.js';
 
 export async function sbFetch(path, opts = {}) {
+  // CAMBIO 1: leer con la sesión del usuario (JWT), no con la anon key, para
+  // que RLS pueda filtrar por auth.jwt(). Cae a la anon key si no hay sesión.
+  const token = (await getAccessToken()) || SB_KEY;
   const headers = {
     'apikey': SB_KEY,
-    'Authorization': 'Bearer ' + SB_KEY,
+    'Authorization': 'Bearer ' + token,
     'Content-Type': 'application/json',
     'Accept-Profile': 'b2b_metrics'
   };
@@ -106,12 +110,13 @@ export async function loadDataFromSupabase({ onStatus = () => {} } = {}) {
     const pageSize = 1000;
 
     // PASO 1 — Obtener el total de filas con una sola request
+    const token = (await getAccessToken()) || SB_KEY;
     const countRes = await fetch(
       SB_URL + '/rest/v1/' + table + '?select=*&limit=1',
       {
         headers: {
           'apikey': SB_KEY,
-          'Authorization': 'Bearer ' + SB_KEY,
+          'Authorization': 'Bearer ' + token,
           'Accept-Profile': 'b2b_metrics',
           'Prefer': 'count=exact'
         }
