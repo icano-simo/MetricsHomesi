@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, initials } from './utils.js';
 import { openModal, pushModalView } from './modal.js';
 import { renderModalFilters } from './modal-filters.js';
+import { visibleOwners } from './visibility.js';
 import { dl } from './export.js';
 
 // ── Healthiness breakdown (compartido: pipeline, lo-pipeline, performance, lo-performance) ──
@@ -190,10 +191,11 @@ function getInactiveCutoff() {
 
 
 function getAllowedOwners() {
-  return document.getElementById('owners-list').value
+  // Display-only: se limita a los BDs visibles del usuario (no cambia el cálculo).
+  return visibleOwners(document.getElementById('owners-list').value
     .split(',')
     .map(s => s.trim().replace(/^["']+|["']+$/g, '').trim())
-    .filter(s => s !== '');
+    .filter(s => s !== ''));
 }
 
 function statusChipHtml(status) {

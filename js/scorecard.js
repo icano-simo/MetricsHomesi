@@ -1,8 +1,11 @@
 import { state } from './state.js';
 import { initials } from './utils.js';
 import { BADGE } from './config.js';
+import { visibleOwners } from './visibility.js';
 
 export function renderScorecard(owners) {
+  // Display-only: limita a los BDs visibles del usuario (no cambia el cálculo).
+  owners = visibleOwners(owners);
   const cats = Object.keys(BADGE).filter(k => k !== 'Inactive');
 
   const medEl = document.getElementById('sc-filter-med');

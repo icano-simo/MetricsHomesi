@@ -769,6 +769,7 @@ body{background:#FCFCFA}
 /* ═══════════ Autenticación (login overlay) ═══════════ */
 #auth-overlay{position:fixed;inset:0;background:#FCFCFA;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}
 #change-password-overlay{position:fixed;inset:0;background:#FCFCFA;z-index:9998;display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}
+#no-access-overlay{position:fixed;inset:0;background:#FCFCFA;z-index:9998;display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}
 .auth-card{background:white;border:1px solid #E2E8F0;border-radius:20px;padding:40px;width:100%;max-width:420px;box-shadow:0 4px 24px rgba(0,0,0,0.08)}
 .auth-logo{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:28px}
 .auth-logo-img{max-width:240px;width:100%;height:auto;display:block}

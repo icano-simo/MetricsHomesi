@@ -1,11 +1,13 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField } from './utils.js';
+import { visibleOwners } from './visibility.js';
 
 function getAllowedOwners() {
-  return document.getElementById('owners-list').value
+  // Display-only: se limita a los BDs visibles del usuario (no cambia el cálculo).
+  return visibleOwners(document.getElementById('owners-list').value
     .split(',')
     .map(s => s.trim().replace(/^["']+|["']+$/g, '').trim())
-    .filter(s => s !== '');
+    .filter(s => s !== ''));
 }
 
 // Current Window: derived from state.activeResults — guaranteed exact match with Metrics tab
