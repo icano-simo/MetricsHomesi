@@ -25,5 +25,10 @@ export const state = {
   callsData: [],
   zoomData: [],
   doNotCountMeetings: new Set(),
-  zoomParticipantLabels: new Map()
+  zoomParticipantLabels: new Map(),
+  // Visibilidad por BD (solo DISPLAY; el cálculo usa todos los datos)
+  visibilityLoaded: false,
+  fullAccess: false,
+  visibleBdSet: new Set(),
+  visibleBdNames: []
 };

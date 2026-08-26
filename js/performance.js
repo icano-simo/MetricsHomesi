@@ -3,6 +3,7 @@ import { norm, parseDate, fmtDate, getField } from './utils.js';
 import { sbFetch } from './supabase.js';
 import { openModal, pushModalView } from './modal.js';
 import { renderModalFilters } from './modal-filters.js';
+import { visibleOwners } from './visibility.js';
 import { findRealtorMatch } from './meetings-review.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
@@ -80,8 +81,9 @@ export async function saveOwnersList() {
 }
 
 function getAllowedOwners() {
-  return document.getElementById('owners-list').value
-    .split(',').map(s => s.trim().replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== '');
+  // Display-only: se limita a los BDs visibles del usuario (no cambia el cálculo).
+  return visibleOwners(document.getElementById('owners-list').value
+    .split(',').map(s => s.trim().replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== ''));
 }
 
 const MS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -2093,6 +2095,11 @@ function populateSelects() {
   const prevOwner = ownerEl.value;
   ownerEl.innerHTML = '<option value="">&#8212; Select BD &#8212;</option>' +
     owners.map(o => '<option value="' + o + '"' + (o === prevOwner ? ' selected' : '') + '>' + o + '</option>').join('');
+  // Preselecciona el BD del usuario sin acceso total (para que vea lo suyo sin filtrar).
+  if (!state.fullAccess && owners.length && !ownerEl.value) {
+    ownerEl.value = owners[0];
+    ownerEl.dispatchEvent(new Event('change'));
+  }
 
   const yearsSet = new Set();
   const today = new Date();

@@ -21,6 +21,7 @@ import { initLoTrends, renderLoTrends } from './lo-trends.js';
 import { initLoPerformance, renderLoPerformance } from './lo-performance.js';
 import { initMeetingsReview, renderMeetingsReview, clearMrFilters, markMeetingParticipant, loadMeetingReviews, saveParticipantLabel, toggleDoesNotCount } from './meetings-review.js';
 import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword, hasAppAccess } from './auth.js';
+import { loadVisibility } from './visibility.js';
 
 let _zoomLoading = false;
 
@@ -189,6 +190,8 @@ function _refreshMeetingsIfOpen() {
 }
 
 function showView(viewId) {
+  // Sin acceso total no se puede entrar a LO Metrics (aunque el nav está oculto).
+  if (viewId === 'lo-metrics' && !state.fullAccess) return;
   ['view-bd-metrics', 'view-data-upload', 'view-lo-metrics', 'view-meetings-review'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', id !== 'view-' + viewId);
@@ -292,6 +295,14 @@ document.addEventListener('click', e => {
 
 async function initApp() {
   setStatus('load', '⏳ Connecting to Supabase...');
+
+  // Visibilidad por BD (solo DISPLAY). Debe cargar antes de renderizar.
+  // La usuaria sin acceso total no ve las pantallas de Loan Officer.
+  await loadVisibility();
+  if (!state.fullAccess) {
+    const navLo = document.getElementById('nav-lo');
+    if (navLo) navLo.style.display = 'none';
+  }
 
   // Restore sidebar state from localStorage
   if (localStorage.getItem('sidebarCollapsed') === '1') {
