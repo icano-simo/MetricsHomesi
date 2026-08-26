@@ -1,10 +1,13 @@
 import { state } from './state.js';
 import { fmtDate } from './utils.js';
 import { BADGE } from './config.js';
+import { visibleOwners, isOwnerVisible } from './visibility.js';
 
 export function renderSummary(_w, filtActive, filtInactive, cutoffDate, floorDate, inactFrom) {
-  const src = filtActive || state.activeResults;
-  const srcInact = (filtInactive || state.inactiveResults).filter(r => r.assignedOwner && r.assignedOwner !== '');
+  // Display-only: los conteos se limitan a los BDs visibles del usuario
+  // (isOwnerVisible = true para acceso total → sin cambios; el cálculo no se toca).
+  const src = (filtActive || state.activeResults).filter(r => isOwnerVisible(r.assignedOwner));
+  const srcInact = (filtInactive || state.inactiveResults).filter(r => r.assignedOwner && r.assignedOwner !== '' && isOwnerVisible(r.assignedOwner));
   const total = src.length, inact = srcInact.length;
   const h = src.filter(r => r.med.startsWith('Hunting')).length;
   const f = src.filter(r => r.med.startsWith('Farming')).length;
@@ -50,7 +53,8 @@ export function setMode(mode) {
 }
 
 export function populateFilters(owners) {
-  const cleanOwners = owners.filter(o => o && o.trim() !== '');
+  // Display-only: los selectores de owner solo listan los BDs visibles.
+  const cleanOwners = visibleOwners(owners.filter(o => o && o.trim() !== ''));
   document.getElementById('filter-own').innerHTML = '<option value="">All Owners</option>' + cleanOwners.map(o => '<option value="' + o + '">' + o + '</option>').join('');
   const branches = [...new Set([...state.activeResults, ...state.inactiveResults].map(r => r.assignedBranch).filter(b => b && b.trim() !== ''))].sort();
   document.getElementById('filter-branch').innerHTML = '<option value="">All Branches</option>' + branches.map(b => '<option value="' + b + '">' + b + '</option>').join('');
@@ -63,10 +67,10 @@ export function renderTable() {
   const fo = Array.from(document.getElementById('filter-own').selectedOptions).map(o => o.value).filter(Boolean);
   const fb = Array.from(document.getElementById('filter-branch').selectedOptions).map(o => o.value).filter(Boolean);
   const rows = (state.currentMode === 'active' ? state.activeResults : state.inactiveResults)
-    .filter(r => (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
+    .filter(r => isOwnerVisible(r.assignedOwner) && (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
 
-  const filtActive = state.activeResults.filter(r => (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
-  const filtInactive = state.inactiveResults.filter(r => (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
+  const filtActive = state.activeResults.filter(r => isOwnerVisible(r.assignedOwner) && (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
+  const filtInactive = state.inactiveResults.filter(r => isOwnerVisible(r.assignedOwner) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
   const cutoffStr = document.getElementById('cutoff-date').value;
   const windowDays = parseInt(document.getElementById('window-days').value) || 60;
   const cutoff = new Date(cutoffStr + 'T23:59:59Z');
