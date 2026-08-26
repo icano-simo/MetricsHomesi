@@ -90,7 +90,8 @@ export function renderAssignCards() {
 
   const branchEl = document.getElementById('assign-filter-branch');
   const prevBranches = Array.from(branchEl.selectedOptions).map(o => o.value);
-  const availBranches = [...new Set(allResults.map(r => r.assignedBranch).filter(b => b && b.trim() !== ''))].sort();
+  // Sucursales presentes en las filas visibles de esta persona (no todas).
+  const availBranches = [...new Set(allResults.filter(r => isOwnerVisible(r.assignedOwner)).map(r => r.assignedBranch).filter(b => b && b.trim() !== ''))].sort();
   branchEl.innerHTML = availBranches.map(b => '<option value="' + b + '"' + (prevBranches.includes(b) ? ' selected' : '') + '>' + b + '</option>').join('');
   const filterBranches = Array.from(branchEl.selectedOptions).map(o => o.value).filter(Boolean);
 
