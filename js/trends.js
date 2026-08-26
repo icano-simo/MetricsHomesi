@@ -1,11 +1,13 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField } from './utils.js';
+import { visibleOwners } from './visibility.js';
 
 function getAllowedOwners() {
-  return document.getElementById('owners-list').value
+  // Display-only: se limita a los BDs visibles del usuario (no cambia el cálculo).
+  return visibleOwners(document.getElementById('owners-list').value
     .split(',')
     .map(s => s.trim().replace(/^["']+|["']+$/g, '').trim())
-    .filter(s => s !== '');
+    .filter(s => s !== ''));
 }
 
 // Current Window: derived from state.activeResults — guaranteed exact match with Metrics tab
@@ -151,6 +153,8 @@ export function renderTrends() {
     container.innerHTML = '<div class="empty-state">No Business Developers configured in Settings → Group Owners</div>';
     return;
   }
+  // Un solo BD visible: no hay comparación entre BDs; sirve solo la de periodos.
+  const singleBd = allowedOwners.length === 1;
 
   // Current window label — same params as calc.js (no hour reset, matches calc.js floor)
   const cutoffStr = document.getElementById('cutoff-date').value;
@@ -180,6 +184,13 @@ export function renderTrends() {
   const c2Days = c2Active ? Math.round((c2Cutoff - c2Floor) / 86400000) : null;
   const c2Label = document.getElementById('trends-c2-label');
   if (c2Label) c2Label.textContent = c2Active ? fmtDate(c2Floor) + ' – ' + fmtDate(c2Cutoff) + ' (' + c2Days + 'd)' : '—';
+
+  // Un solo BD y sin ventanas de comparación: la tabla queda en una celda.
+  // En vez de verse rota, explicá qué falta.
+  if (singleBd && !c1Active && !c2Active) {
+    container.innerHTML = '<div class="empty-state">Configurá las ventanas de comparación (arriba) para ver la tendencia entre periodos.</div>';
+    return;
+  }
 
   // Calculate windows
   const curData = calcFromActiveResults(allowedOwners);
@@ -298,7 +309,7 @@ export function renderTrends() {
     '<div class="twrap">' +
       '<table class="modal-table trends-table">' +
         '<thead>' + head + '</thead>' +
-        '<tbody>' + avgRow + bodyRows + totRow + '</tbody>' +
+        '<tbody>' + (singleBd ? '' : avgRow) + bodyRows + (singleBd ? '' : totRow) + '</tbody>' +
       '</table>' +
     '</div>';
 }

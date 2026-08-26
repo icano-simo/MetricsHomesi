@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { norm, getField, parseDate } from './utils.js';
 import { sbFetch } from './supabase.js';
+import { visibleOwners } from './visibility.js';
 
 // ── Internal state ────────────────────────────────────────────────────────────
 // "participantName|meetingId" → { isRealtor: bool, confirmedRealtorName: string|null }
@@ -381,8 +382,8 @@ export function initMeetingsReview() {
   const hostSel  = document.getElementById('mr-host');
   if (!yearSel) return;
 
-  const allowedOwners = (document.getElementById('owners-list') || { value: '' }).value
-    .split(',').map(s => s.trim()).filter(s => s !== '' && s !== '""' && s.replace(/[",\s]/g, '') !== '');
+  const allowedOwners = visibleOwners((document.getElementById('owners-list') || { value: '' }).value
+    .split(',').map(s => s.trim()).filter(s => s !== '' && s !== '""' && s.replace(/[",\s]/g, '') !== ''));
   const ownersNorm = new Set(allowedOwners.map(o => norm(o)));
 
   const MS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -437,8 +438,8 @@ export function renderMeetingsReview() {
   const monthVal = (document.getElementById('mr-month') || {}).value || '';
   const hostVal  = (document.getElementById('mr-host')  || {}).value || '';
 
-  const allowedOwners = (document.getElementById('owners-list') || { value: '' }).value
-    .split(',').map(s => s.trim()).filter(s => s !== '' && s !== '""' && s.replace(/[",\s]/g, '') !== '');
+  const allowedOwners = visibleOwners((document.getElementById('owners-list') || { value: '' }).value
+    .split(',').map(s => s.trim()).filter(s => s !== '' && s !== '""' && s.replace(/[",\s]/g, '') !== ''));
   const ownersNorm = new Set(allowedOwners.map(o => norm(o)));
 
   // ── Build meeting groups ──

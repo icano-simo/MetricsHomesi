@@ -20,7 +20,8 @@ import { initLoPipeline, renderLoPipeline, renderLoCwSection, clearLoPipelineFil
 import { initLoTrends, renderLoTrends } from './lo-trends.js';
 import { initLoPerformance, renderLoPerformance } from './lo-performance.js';
 import { initMeetingsReview, renderMeetingsReview, clearMrFilters, markMeetingParticipant, loadMeetingReviews, saveParticipantLabel, toggleDoesNotCount } from './meetings-review.js';
-import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword } from './auth.js';
+import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword, hasAppAccess } from './auth.js';
+import { loadVisibility } from './visibility.js';
 
 let _zoomLoading = false;
 
@@ -189,6 +190,8 @@ function _refreshMeetingsIfOpen() {
 }
 
 function showView(viewId) {
+  // Sin acceso total no se puede entrar a LO Metrics (aunque el nav está oculto).
+  if (viewId === 'lo-metrics' && !state.fullAccess) return;
   ['view-bd-metrics', 'view-data-upload', 'view-lo-metrics', 'view-meetings-review'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', id !== 'view-' + viewId);
@@ -292,6 +295,14 @@ document.addEventListener('click', e => {
 
 async function initApp() {
   setStatus('load', '⏳ Connecting to Supabase...');
+
+  // Visibilidad por BD (solo DISPLAY). Debe cargar antes de renderizar.
+  // La usuaria sin acceso total no ve las pantallas de Loan Officer.
+  await loadVisibility();
+  if (!state.fullAccess) {
+    const navLo = document.getElementById('nav-lo');
+    if (navLo) navLo.style.display = 'none';
+  }
 
   // Restore sidebar state from localStorage
   if (localStorage.getItem('sidebarCollapsed') === '1') {
@@ -509,9 +520,13 @@ async function checkAuth() {
     setupLoginForm();
     return false;
   }
-  const email = (session.user && session.user.email) || '';
-  if (!email.endsWith('@supremelending.com')) {
-    await signOut();
+  const user = session.user || {};
+  const email = user.email || '';
+  // CAMBIO 2: allowed_apps es el ACL (reemplaza el check de dominio; se
+  // administra en un solo lugar y admite correos de otros dominios).
+  if (!hasAppAccess(user)) {
+    document.getElementById('auth-overlay').style.display = 'none';
+    showNoAccessOverlay(email);
     return false;
   }
   // Verifica si debe cambiar contraseña (primer login)
@@ -536,7 +551,6 @@ function setupLoginForm() {
     const email = emailInput.value.trim();
     const password = passInput.value;
     if (!email || !password) { showAuthError('Please enter your email and password.'); return; }
-    if (!email.endsWith('@supremelending.com')) { showAuthError('Only @supremelending.com accounts are authorized.'); return; }
     btn.disabled = true;
     btn.textContent = 'Signing in...';
     try {
@@ -565,6 +579,16 @@ function showUserInHeader(email) {
     '<button class="header-logout-btn" id="logout-btn">Sign Out</button>';
   header.appendChild(userDiv);
   document.getElementById('logout-btn').addEventListener('click', async () => { await signOut(); });
+}
+
+function showNoAccessOverlay(email) {
+  const ov = document.getElementById('no-access-overlay');
+  if (!ov) return;
+  ov.style.display = 'flex';
+  const emailEl = document.getElementById('no-access-email');
+  if (emailEl) emailEl.textContent = email;
+  const btn = document.getElementById('no-access-signout');
+  if (btn) btn.addEventListener('click', async () => { await signOut(); });
 }
 
 function showChangePasswordOverlay() {

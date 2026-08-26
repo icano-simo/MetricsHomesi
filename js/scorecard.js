@@ -1,8 +1,11 @@
 import { state } from './state.js';
 import { initials } from './utils.js';
 import { BADGE } from './config.js';
+import { visibleOwners, isOwnerVisible } from './visibility.js';
 
 export function renderScorecard(owners) {
+  // Display-only: limita a los BDs visibles del usuario (no cambia el cálculo).
+  owners = visibleOwners(owners);
   const cats = Object.keys(BADGE).filter(k => k !== 'Inactive');
 
   const medEl = document.getElementById('sc-filter-med');
@@ -19,7 +22,8 @@ export function renderScorecard(owners) {
   const scMeds = Array.from(medEl.selectedOptions).map(o => o.value).filter(Boolean);
   const scOwns = Array.from(ownEl.selectedOptions).map(o => o.value).filter(Boolean);
 
-  const filtOwners = scOwns.length ? owners.filter(o => scOwns.includes(o)) : owners;
+  // Filas gateadas por owner visible (robusto, además de la lista ya filtrada).
+  const filtOwners = (scOwns.length ? owners.filter(o => scOwns.includes(o)) : owners).filter(o => isOwnerVisible(o));
 
   document.getElementById('scorecard-grid').innerHTML = filtOwners.map(owner => {
     const mine = state.activeResults.filter(r => r.assignedOwner === owner);
@@ -97,7 +101,7 @@ export function renderRankings(owners) {
 }
 
 export function refreshScorecard() {
-  const owners = document.getElementById('owners-list').value.split(',').map(s => s.trim().replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== '');
+  const owners = visibleOwners(document.getElementById('owners-list').value.split(',').map(s => s.trim().replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== ''));
   renderScorecard(owners);
 }
 

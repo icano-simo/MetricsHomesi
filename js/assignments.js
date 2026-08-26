@@ -4,6 +4,7 @@ import { BADGE } from './config.js';
 import { sbFetch } from './supabase.js';
 import { renderSummary } from './ui.js';
 import { renderLog } from './log.js';
+import { visibleOwners, isOwnerVisible } from './visibility.js';
 
 export function loadSfReference(inputEl) {
   const file = inputEl.files[0];
@@ -73,7 +74,7 @@ export function renderAssignCards() {
   const search = document.getElementById('assign-search').value.toLowerCase();
   const filterStatus = document.getElementById('assign-filter-status').value;
   const filterOwners = Array.from(document.getElementById('assign-filter-owner').selectedOptions).map(o => o.value).filter(Boolean);
-  const owners = document.getElementById('owners-list').value.split(',').map(s => s.trim().replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== '');
+  const owners = visibleOwners(document.getElementById('owners-list').value.split(',').map(s => s.trim().replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== ''));
   const allResults = [...state.activeResults, ...state.inactiveResults];
 
   const leadCountMap = new Map();
@@ -89,7 +90,8 @@ export function renderAssignCards() {
 
   const branchEl = document.getElementById('assign-filter-branch');
   const prevBranches = Array.from(branchEl.selectedOptions).map(o => o.value);
-  const availBranches = [...new Set(allResults.map(r => r.assignedBranch).filter(b => b && b.trim() !== ''))].sort();
+  // Sucursales presentes en las filas visibles de esta persona (no todas).
+  const availBranches = [...new Set(allResults.filter(r => isOwnerVisible(r.assignedOwner)).map(r => r.assignedBranch).filter(b => b && b.trim() !== ''))].sort();
   branchEl.innerHTML = availBranches.map(b => '<option value="' + b + '"' + (prevBranches.includes(b) ? ' selected' : '') + '>' + b + '</option>').join('');
   const filterBranches = Array.from(branchEl.selectedOptions).map(o => o.value).filter(Boolean);
 
@@ -101,6 +103,8 @@ export function renderAssignCards() {
   const filterMeds = Array.from(medEl.selectedOptions).map(o => o.value).filter(Boolean);
 
   let items = allResults.filter(r => {
+    // Display-only: la persona solo ve realtors de los BDs que le corresponden.
+    if (!isOwnerVisible(r.assignedOwner)) return false;
     if (search && !r.name.toLowerCase().includes(search)) return false;
     const st = getAssignStatus(r.key);
     if (filterStatus === 'active' && r.med === 'Inactive') return false;
@@ -242,8 +246,8 @@ export function renderUnassigned() {
   const prevSearch = (document.getElementById('ua-search') || {}).value || '';
   const prevSfFilter = (document.getElementById('ua-sf-filter') || {}).value || 'all';
 
-  const owners = document.getElementById('owners-list').value
-    .split(',').map(s => s.trim().replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== '');
+  const owners = visibleOwners(document.getElementById('owners-list').value
+    .split(',').map(s => s.trim().replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== ''));
 
   const sfColVisible = state.realtorOwnerMap.size > 0;
   const allItems = state.unassignedResults;
