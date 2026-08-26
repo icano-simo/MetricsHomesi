@@ -27,16 +27,20 @@ export async function loadVisibility() {
     // bd_id visibles para la sesión (RPC; resuelve '*' → todos los de dim_bd).
     const vis = await sbFetch('rpc/my_visible_bds', { method: 'POST', body: JSON.stringify({}) });
     const visibleIds = new Set((vis || []).map(r => r.bd_id).filter(Boolean));
-    // Universo de BDs + traducción id → nombre.
+    // Traducción id → nombre (dim_bd tiene ambas columnas).
     const dim = await sbFetch('dim_bd?select=bd_id,bd_name');
     const idToName = new Map((dim || []).map(r => [r.bd_id, r.bd_name]));
-    const allIds = (dim || []).map(r => r.bd_id).filter(Boolean);
     const visibleNames = [...visibleIds].map(id => idToName.get(id)).filter(Boolean);
 
     state.visibleBdNames = visibleNames;
     state.visibleBdSet = new Set(visibleNames.map(n => norm(n)));
-    // Acceso total = ve todos los BDs del universo (dim_bd).
-    state.fullAccess = allIds.length > 0 && allIds.every(id => visibleIds.has(id));
+
+    // Acceso total = CONCEDIDO explícitamente (subject_key '*'), no inferido por
+    // conteo: RPC a b2b_metrics.has_full_access() (true solo si hay fila '*').
+    const fa = await sbFetch('rpc/has_full_access', { method: 'POST', body: JSON.stringify({}) });
+    state.fullAccess = fa === true
+      || (Array.isArray(fa) && (fa[0] === true || fa[0]?.has_full_access === true))
+      || (fa && typeof fa === 'object' && fa.has_full_access === true);
     state.visibilityLoaded = true;
   } catch (e) {
     // Fail-closed: sin visibilidad, no mostrar datos ni dar acceso total.
