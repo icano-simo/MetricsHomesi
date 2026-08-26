@@ -56,7 +56,8 @@ export function populateFilters(owners) {
   // Display-only: los selectores de owner solo listan los BDs visibles.
   const cleanOwners = visibleOwners(owners.filter(o => o && o.trim() !== ''));
   document.getElementById('filter-own').innerHTML = '<option value="">All Owners</option>' + cleanOwners.map(o => '<option value="' + o + '">' + o + '</option>').join('');
-  const branches = [...new Set([...state.activeResults, ...state.inactiveResults].map(r => r.assignedBranch).filter(b => b && b.trim() !== ''))].sort();
+  // Sucursales que aparecen en las filas visibles de esta persona (no todas).
+  const branches = [...new Set([...state.activeResults, ...state.inactiveResults].filter(r => isOwnerVisible(r.assignedOwner)).map(r => r.assignedBranch).filter(b => b && b.trim() !== ''))].sort();
   document.getElementById('filter-branch').innerHTML = '<option value="">All Branches</option>' + branches.map(b => '<option value="' + b + '">' + b + '</option>').join('');
   document.getElementById('assign-filter-owner').innerHTML = cleanOwners.map(o => '<option value="' + o + '">' + o + '</option>').join('');
   document.getElementById('assign-filter-branch').innerHTML = branches.map(b => '<option value="' + b + '">' + b + '</option>').join('');
