@@ -58,11 +58,15 @@ async function _runCalc() {
     const cd = parseDate(getField(row, 'Created Date', 'Create Date', 'created date', 'create date'));
     const ownerStr = String(getField(row, 'Lead Owner', 'lead owner', 'owner') || '').trim();
     const branchStr = String(getField(row, 'Branch', 'branch') || '').trim();
-    if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], owners: new Map(), allOwners: new Map(), branches: new Map(), convertedCount: 0 });
+    if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], owners: new Map(), allOwners: new Map(), branches: new Map(), lastBranch: '', lastBranchDate: null, convertedCount: 0 });
     const rec = byRef.get(key);
     if (cd) {
       rec.allDates.push(cd);
       if (ownerStr) rec.allOwners.set(ownerStr, (rec.allOwners.get(ownerStr) || 0) + 1);
+      if (branchStr && (!rec.lastBranchDate || cd > rec.lastBranchDate ||
+          (cd.getTime() === rec.lastBranchDate.getTime() && branchStr < rec.lastBranch))) {
+        rec.lastBranch = branchStr; rec.lastBranchDate = cd;
+      }
       if (cd >= floorDate && cd <= cutoff) {
         rec.recentDates.push(cd);
         const conv = getField(row, 'Converted', 'converted');
@@ -80,6 +84,12 @@ async function _runCalc() {
 
   const cwMap = new Map(), ratMap = new Map(), paMap = new Map(), oppOwnerMap = new Map();
   const curCwMap = new Map(), curRatMap = new Map(), curPaMap = new Map();
+  // Mapas paralelos para inactivos: mismo conteo pero en rango inactFloor..cutoff
+  // (los inactivos no tienen nada en la ventana activa de 60 días).
+  const cwMapInact = new Map(), ratMapInact = new Map(), paMapInact = new Map();
+  // Cierres histórico: Closed Won SIN filtro de fecha (incluye las que no tienen
+  // Disbursement Date). Sin filtro de lender ni de exclusión — se cuenta todo.
+  const cwAllMap = new Map();
   for (const row of (state.oppData || [])) {
     const ref = getField(row, 'Referred By', 'referred by'); if (!ref || !String(ref).trim()) continue;
     const key = norm(ref);
@@ -93,9 +103,13 @@ async function _runCalc() {
     oppRowsMap.get(key).push(row);
     if (stage !== 'closed lost') {
       if (stage === 'closed won' && disbDate && disbDate >= floorDate && disbDate <= cutoff) cwMap.set(key, (cwMap.get(key) || 0) + 1);
+      if (stage === 'closed won' && disbDate && disbDate >= inactFloor && disbDate <= cutoff) cwMapInact.set(key, (cwMapInact.get(key) || 0) + 1);
+      if (stage === 'closed won') cwAllMap.set(key, (cwAllMap.get(key) || 0) + 1);
     }
     if (paDate && paDate >= floorDate && paDate <= cutoff) paMap.set(key, (paMap.get(key) || 0) + 1);
+    if (paDate && paDate >= inactFloor && paDate <= cutoff) paMapInact.set(key, (paMapInact.get(key) || 0) + 1);
     if (ratDate && ratDate >= floorDate && ratDate <= cutoff) ratMap.set(key, (ratMap.get(key) || 0) + 1);
+    if (ratDate && ratDate >= inactFloor && ratDate <= cutoff) ratMapInact.set(key, (ratMapInact.get(key) || 0) + 1);
     if (stage === 'closed lost') continue;
     const isCW = stage === 'closed won' && disbDate && disbDate >= floorDate && disbDate <= cutoff;
     const isRat = !isCW && ratDate && ratDate >= floorDate && ratDate <= cutoff;
@@ -151,7 +165,15 @@ async function _runCalc() {
     } else {
       if (rec.owners.size > 0) { let best = '', bestN = -1; for (const [o, n] of rec.owners.entries()) { const c = allowedNorm.get(norm(o)); if (c && n > bestN) { bestN = n; best = c; } } if (bestN > -1) assignedOwner = best; }
       if (!assignedOwner && oppOwnerMap.has(key)) { const c = allowedNorm.get(norm(oppOwnerMap.get(key))); if (c) assignedOwner = c; }
-      if (rec.branches.size > 0) { let best = '', bestN = -1; for (const [b, n] of rec.branches.entries()) if (n > bestN) { bestN = n; best = b; } assignedBranch = best; }
+      if (rec.branches.size > 0) {
+        let best = '', bestN = -1;
+        for (const [b, n] of rec.branches.entries()) {
+          if (n > bestN || (n === bestN && b < best)) { bestN = n; best = b; }
+        }
+        assignedBranch = best;
+      } else if (rec.lastBranch) {
+        assignedBranch = rec.lastBranch;
+      }
     }
 
     if (!assignedOwner || assignedOwner.trim() === '') {
@@ -187,7 +209,8 @@ async function _runCalc() {
       state.activeResults.push({ key, name: rec.name, cnt, convertedCount: rec.convertedCount, firstDate, penult, lastDate, c1, c2, c3, c4, cw, pa, rat, curCw, curRat, curPa, med, assignedOwner, assignedBranch, ownerSource, confirmed, fromOppsOnly: rec.fromOppsOnly || false, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     } else {
       const curCw2 = curCwMap.get(key) || 0, curRat2 = curRatMap.get(key) || 0, curPa2 = curPaMap.get(key) || 0;
-      state.inactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw, pa, rat, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, fromOppsOnly: rec.fromOppsOnly || false, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
+      const cwI = cwMapInact.get(key) || 0, paI = paMapInact.get(key) || 0, ratI = ratMapInact.get(key) || 0;
+      state.inactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw: cwI, pa: paI, rat: ratI, cwAll: cwAllMap.get(key) || 0, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, fromOppsOnly: rec.fromOppsOnly || false, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     }
     const existing = state.masterMap.get(key);
     if (!existing || existing.source === 'auto') {

@@ -184,27 +184,32 @@ export function renderTable() {
       '<th style="min-width:100px" onclick="srt(String.fromCharCode(99,119))">Closed Won &#8597;</th>',
       '<th style="min-width:90px" onclick="srt(String.fromCharCode(112,97))">Pre-Appr &#8597;</th>',
       '<th style="min-width:80px" onclick="srt(String.fromCharCode(114,97,116))">Ratified &#8597;</th>',
+      '<th style="min-width:120px" onclick="srt(String.fromCharCode(99,119,65,108,108))">Closings (all-time) &#8597;</th>',
       '<th style="min-width:110px" onclick="srt(String.fromCharCode(97,115,115,105,103,110,101,100,79,119,110,101,114))">Owner &#8597;</th>',
       '<th style="min-width:90px" onclick="srt(String.fromCharCode(97,115,115,105,103,110,101,100,66,114,97,110,99,104))">Branch &#8597;</th>',
       '<th>Status</th>',
       '</tr>'
     ].join('');
 
-    tb.innerHTML = rows.map(r => [
+    tb.innerHTML = rows.map(r => {
+      const k = encodeURIComponent(r.key);
+      return [
       '<tr>',
       '<td style="font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="' + r.name + (r.fromOppsOnly ? ' — direct-to-opportunity (no leads)' : '') + '">' + r.name + (r.fromOppsOnly ? OPP_BADGE : '') + '</td>',
       '<td class="dt">' + fmtDate(r.lastDate) + '</td>',
       '<td style="text-align:center;font-weight:700;color:#B8960C">' + (r.daysSinceLast != null ? r.daysSinceLast + 'd' : '&#8211;') + '</td>',
       '<td style="text-align:center">' + (r.cnt || '&#8211;') + '</td>',
       '<td class="dt">' + fmtDate(r.firstDate) + '</td>',
-      '<td style="text-align:center">' + (r.cw || '&#8211;') + '</td>',
-      '<td style="text-align:center">' + (r.pa || '&#8211;') + '</td>',
-      '<td style="text-align:center">' + (r.rat || '&#8211;') + '</td>',
+      '<td style="text-align:center;color:' + (r.cw ? '#085041' : '#CCD5E0') + ';font-weight:' + (r.cw ? '700' : '400') + '">' + (r.cw ? '<span class="clickable-num" data-rkey="' + k + '" data-dtype="cw" style="color:#085041" title="View Closed Won detail">' + r.cw + '</span>' : '&#8211;') + '</td>',
+      '<td style="text-align:center;color:' + (r.pa ? '#185FA5' : '#CCD5E0') + '">' + (r.pa ? '<span class="clickable-num" data-rkey="' + k + '" data-dtype="pa" style="color:#185FA5" title="View Pre-Approval detail">' + r.pa + '</span>' : '&#8211;') + '</td>',
+      '<td style="text-align:center;color:' + (r.rat ? '#3C3489' : '#CCD5E0') + '">' + (r.rat ? '<span class="clickable-num" data-rkey="' + k + '" data-dtype="rat" style="color:#3C3489" title="View Ratified detail">' + r.rat + '</span>' : '&#8211;') + '</td>',
+      '<td style="text-align:center;color:' + (r.cwAll ? '#1E3A5F' : '#CCD5E0') + ';font-weight:' + (r.cwAll ? '700' : '400') + '">' + (r.cwAll ? '<span class="clickable-num" data-rkey="' + k + '" data-dtype="cwAll" style="color:#1E3A5F" title="View all-time closings">' + r.cwAll + '</span>' : '&#8211;') + '</td>',
       '<td><span class="ot">' + (r.assignedOwner || '&#8211;') + '</span></td>',
       '<td><span class="ot">' + (r.assignedBranch || '&#8211;') + '</span></td>',
       '<td><span class="badge b-inactive">Inactive</span></td>',
       '</tr>'
-    ].join('')).join('');
+      ].join('');
+    }).join('');
   }
 }
 
