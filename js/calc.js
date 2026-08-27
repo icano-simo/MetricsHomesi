@@ -75,6 +75,9 @@ async function _runCalc() {
     }
   }
 
+  // Realtors que SÍ tienen al menos un lead real: no se tocan más abajo.
+  const leadKeys = new Set(byRef.keys());
+
   const cwMap = new Map(), ratMap = new Map(), paMap = new Map(), oppOwnerMap = new Map();
   const curCwMap = new Map(), curRatMap = new Map(), curPaMap = new Map();
   for (const row of (state.oppData || [])) {
@@ -100,6 +103,33 @@ async function _runCalc() {
     if (isCW) curCwMap.set(key, (curCwMap.get(key) || 0) + 1);
     else if (isRat) curRatMap.set(key, (curRatMap.get(key) || 0) + 1);
     else if (isPA) curPaMap.set(key, (curPaMap.get(key) || 0) + 1);
+  }
+
+  // Realtors que llegaron directo a oportunidad SIN ningún lead real. Regla de
+  // negocio: cada oportunidad cuenta como 1 lead Y 1 lead convertido (llegar
+  // directo a opp = lead muy caliente). Solo aplica cuando el realtor tiene
+  // CERO leads reales; los que ya tienen leads no se tocan. La fecha del lead
+  // sintético es el Created Date de la oportunidad. Se marca fromOppsOnly para
+  // que la tabla y el modal los muestren distinguibles. La clasificación
+  // activo/inactivo sale de la lógica existente con estas fechas sintéticas.
+  for (const row of (state.oppData || [])) {
+    const ref = getField(row, 'Referred By', 'referred by'); if (!ref || !String(ref).trim()) continue;
+    const key = norm(ref), name = String(ref).trim();
+    if (leadKeys.has(key)) continue; // tiene leads reales → intacto
+    const cd = parseDate(getField(row, 'Created Date', 'created date'));
+    const ownerStr = String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim();
+    const branchStr = String(getField(row, 'Branch', 'branch') || '').trim();
+    if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], owners: new Map(), allOwners: new Map(), branches: new Map(), convertedCount: 0, fromOppsOnly: true });
+    const rec = byRef.get(key);
+    if (ownerStr) { rec.owners.set(ownerStr, (rec.owners.get(ownerStr) || 0) + 1); rec.allOwners.set(ownerStr, (rec.allOwners.get(ownerStr) || 0) + 1); }
+    if (branchStr) rec.branches.set(branchStr, (rec.branches.get(branchStr) || 0) + 1);
+    // Una opp sin Created Date no puede producir un lead sintético; sin lead no
+    // hay conversión. Solo cuenta lead + convertido cuando hay fecha.
+    if (cd) {
+      rec.allDates.push(cd);
+      rec.convertedCount++; // 1 convertido por cada oportunidad con fecha
+      if (cd >= floorDate && cd <= cutoff) rec.recentDates.push(cd);
+    }
   }
 
   state.activeResults = []; state.inactiveResults = []; state.unassignedResults = [];
@@ -154,10 +184,10 @@ async function _runCalc() {
       else if (c1 && c3)        med = 'Farming Lead';
       else                      med = 'Sin medición';
       const curCw = curCwMap.get(key) || 0, curRat = curRatMap.get(key) || 0, curPa = curPaMap.get(key) || 0;
-      state.activeResults.push({ key, name: rec.name, cnt, convertedCount: rec.convertedCount, firstDate, penult, lastDate, c1, c2, c3, c4, cw, pa, rat, curCw, curRat, curPa, med, assignedOwner, assignedBranch, ownerSource, confirmed, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
+      state.activeResults.push({ key, name: rec.name, cnt, convertedCount: rec.convertedCount, firstDate, penult, lastDate, c1, c2, c3, c4, cw, pa, rat, curCw, curRat, curPa, med, assignedOwner, assignedBranch, ownerSource, confirmed, fromOppsOnly: rec.fromOppsOnly || false, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     } else {
       const curCw2 = curCwMap.get(key) || 0, curRat2 = curRatMap.get(key) || 0, curPa2 = curPaMap.get(key) || 0;
-      state.inactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw, pa, rat, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
+      state.inactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw, pa, rat, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, fromOppsOnly: rec.fromOppsOnly || false, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     }
     const existing = state.masterMap.get(key);
     if (!existing || existing.source === 'auto') {
