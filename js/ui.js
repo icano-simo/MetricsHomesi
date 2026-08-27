@@ -3,6 +3,11 @@ import { fmtDate } from './utils.js';
 import { BADGE } from './config.js';
 import { visibleOwners, isOwnerVisible } from './visibility.js';
 
+// Distintivo para realtors "direct-to-opportunity": tienen oportunidad pero
+// ningún lead real. Sus leads/conversiones son sintéticos (1 por oportunidad),
+// así que NO deben verse idénticos a un lead real en el reporte.
+const OPP_BADGE = '<span title="Direct-to-opportunity: opportunities but no leads. Each opportunity counts as 1 lead and 1 conversion." style="display:inline-block;margin-left:4px;font-size:8px;font-weight:700;color:#8A5A00;background:#FFE9B3;border-radius:3px;padding:1px 4px;vertical-align:middle;letter-spacing:.3px">OPP</span>';
+
 export function renderSummary(_w, filtActive, filtInactive, cutoffDate, floorDate, inactFrom) {
   // Display-only: los conteos se limitan a los BDs visibles del usuario
   // (isOwnerVisible = true para acceso total → sin cambios; el cálculo no se toca).
@@ -150,7 +155,7 @@ export function renderTable() {
       const k = encodeURIComponent(r.key);
       return [
         '<tr>',
-        '<td class="sticky-col sticky-col-0 sticky-shadow" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;max-width:140px" title="' + r.name + '">' + r.name + (r.confirmed ? '<span style="color:#1D9E75;font-size:9px;margin-left:3px">&#10003;</span>' : '') + '</td>',
+        '<td class="sticky-col sticky-col-0 sticky-shadow" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;max-width:140px" title="' + r.name + (r.fromOppsOnly ? ' — direct-to-opportunity (no leads)' : '') + '">' + r.name + (r.confirmed ? '<span style="color:#1D9E75;font-size:9px;margin-left:3px">&#10003;</span>' : '') + (r.fromOppsOnly ? OPP_BADGE : '') + '</td>',
         '<td class="sticky-col sticky-col-1"><span class="ot">' + (r.assignedOwner || '&#8211;') + '</span></td>',
         '<td class="sticky-col sticky-col-2"><span class="ot">' + (r.assignedBranch || '&#8211;') + '</span></td>',
         '<td class="sticky-col sticky-col-3 sticky-shadow"><span class="badge ' + (BADGE[r.med] || 'b-sin') + '">' + r.med + '</span></td>',
@@ -187,7 +192,7 @@ export function renderTable() {
 
     tb.innerHTML = rows.map(r => [
       '<tr>',
-      '<td style="font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="' + r.name + '">' + r.name + '</td>',
+      '<td style="font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="' + r.name + (r.fromOppsOnly ? ' — direct-to-opportunity (no leads)' : '') + '">' + r.name + (r.fromOppsOnly ? OPP_BADGE : '') + '</td>',
       '<td class="dt">' + fmtDate(r.lastDate) + '</td>',
       '<td style="text-align:center;font-weight:700;color:#B8960C">' + (r.daysSinceLast != null ? r.daysSinceLast + 'd' : '&#8211;') + '</td>',
       '<td style="text-align:center">' + (r.cnt || '&#8211;') + '</td>',

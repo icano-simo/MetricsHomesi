@@ -147,9 +147,54 @@ export function showScorecardDetail(owner, med) {
   );
 }
 
+// Realtors "direct-to-opportunity" (fromOppsOnly): no tienen leads reales, sus
+// leads/conversiones son sintéticos (1 por oportunidad). El modal muestra las
+// OPORTUNIDADES tal cual, no filas de lead inventadas — así queda claro de dónde
+// sale el conteo. Se usa tanto para "Period Leads" como para "Converted to Opp.".
+function showSyntheticOppLeads(r, realtorName, titleSuffix) {
+  const rows = r.oppRows || [];
+  if (!rows.length) { alert('No opportunities available.'); return; }
+  const head = '<tr>' +
+    '<th>#</th>' +
+    '<th>Opportunity Name</th>' +
+    '<th>Opportunity Owner</th>' +
+    '<th>Stage</th>' +
+    '<th>Created Date</th>' +
+    '</tr>';
+  const body = rows.map((row, i) => {
+    const oppName = String(getField(row, 'Opportunity Name', 'opportunity name') || '—').trim();
+    const owner = String(getField(row, 'Opportunity Owner', 'opportunity owner') || '—').trim();
+    const stage = String(getField(row, 'Stage', 'stage') || '—').trim();
+    const cd = parseDate(getField(row, 'Created Date', 'created date'));
+    return '<tr>' +
+      '<td style="color:#8899BB;font-size:10px">' + (i + 1) + '</td>' +
+      '<td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="' + oppName + '">' + oppName + '</td>' +
+      '<td style="font-size:11px;color:#556080">' + owner + '</td>' +
+      '<td><span class="modal-stage stage-other">' + stage + '</span></td>' +
+      '<td class="dt">' + fmtDate(cd) + '</td>' +
+      '</tr>';
+  }).join('');
+  const csvData = [
+    ['#', 'Opportunity Name', 'Opportunity Owner', 'Stage', 'Created Date'],
+    ...rows.map((row, i) => {
+      const oppName = String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim();
+      const owner = String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim();
+      const stage = String(getField(row, 'Stage', 'stage') || '').trim();
+      const cd = parseDate(getField(row, 'Created Date', 'created date'));
+      return [i + 1, oppName, owner, stage, fmtDate(cd)];
+    })
+  ];
+  openModal(
+    realtorName + ' — ' + titleSuffix,
+    rows.length + ' opportunit' + (rows.length !== 1 ? 'ies' : 'y') + ' · direct-to-opportunity (no leads); each counts as 1 lead & 1 conversion',
+    head, body, csvData
+  );
+}
+
 export function showLeadDetail(key, realtorName) {
   const allResults = [...state.activeResults, ...state.inactiveResults];
   const r = allResults.find(x => x.key === key);
+  if (r && r.fromOppsOnly) return showSyntheticOppLeads(r, realtorName, 'Period Leads');
   if (!r || !r.leadRows || !r.leadRows.length) { alert('No leads available.'); return; }
   const rows = r.leadRows;
   const head = '<tr>' +
@@ -307,6 +352,7 @@ export function showConvertedLeadsDetail(key, realtorName) {
 
   const allResults = [...state.activeResults, ...state.inactiveResults];
   const r = allResults.find(x => x.key === key);
+  if (r && r.fromOppsOnly) return showSyntheticOppLeads(r, realtorName, 'Converted to Opp.');
   if (!r || !r.leadRows || !r.leadRows.length) { alert('No converted leads available.'); return; }
 
   const rows = r.leadRows.filter(row => {
