@@ -53,8 +53,8 @@ export function exportCSV() {
     h = ['Realtor', 'Period Leads', 'Converted to Opp.', '1st Lead', '2nd to Last Lead', 'Leads w/ Pre-Approval', 'Leads w/ Ratified', 'Leads Closed Won', 'Curr. Pre-Approval', 'Curr. Ratified', 'Curr. Closed Won', 'Owner', 'Branch', 'Rating', 'Confirmed'];
     d = rows.map(r => [r.name, r.cnt, r.convertedCount || 0, fmtDate(r.firstDate), fmtDate(r.penult), r.pa, r.rat, r.cw, r.curPa, r.curRat, r.curCw, r.assignedOwner, r.assignedBranch, r.med, r.confirmed ? 'Yes' : 'No']);
   } else {
-    h = ['Realtor', 'Last Lead', 'Inactive Days', '1st Lead', 'Closed Won', 'Pre-Approval', 'Ratified', 'Owner', 'Branch'];
-    d = rows.map(r => [r.name, fmtDate(r.lastDate), r.daysSinceLast || '', fmtDate(r.firstDate), r.cw, r.pa, r.rat, r.assignedOwner, r.assignedBranch]);
+    h = ['Realtor', 'Last Lead', 'Inactive Days', '1st Lead', 'Closed Won', 'Pre-Approval', 'Ratified', 'Closings (all-time)', 'Owner', 'Branch'];
+    d = rows.map(r => [r.name, fmtDate(r.lastDate), r.daysSinceLast || '', fmtDate(r.firstDate), r.cw, r.pa, r.rat, r.cwAll || 0, r.assignedOwner, r.assignedBranch]);
   }
   dl([h, ...d], 'realtors_' + state.currentMode + '.csv');
 }

@@ -205,14 +205,24 @@ export function showOppDetail(key, realtorName, colType) {
   const cutoff = new Date(cutoffStr + 'T23:59:59Z');
   const floorDate = new Date(cutoff); floorDate.setUTCDate(floorDate.getUTCDate() - windowDays);
 
+  // Range-aware: para realtors INACTIVOS el conteo va sobre inactFloor..cutoff
+  // (igual que calc.js), no la ventana de 60d. Activos: ventana sin cambios.
+  const inactFromStr = document.getElementById('inactive-from').value;
+  const inactFloor = inactFromStr ? new Date(inactFromStr + 'T00:00:00Z') : new Date('2024-01-01');
+  const isInactiveKey = state.inactiveResults.some(x => x.key === key);
+  const rangeFloor = isInactiveKey ? inactFloor : floorDate;
+
   const filtered = r.oppRows.filter(row => {
     const stage = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
     const disbDate = parseDate(getField(row, 'Disbursement Date', 'disbursement date'));
     const paDate = parseDate(getField(row, 'Pre-Approved Date', 'pre-approved date', 'pre approved date'));
     const ratDate = parseDate(getField(row, 'Ratified Date', 'ratified date'));
-    const isCW = stage === 'closed won' && disbDate && disbDate >= floorDate && disbDate <= cutoff;
-    const isRat = ratDate && ratDate >= floorDate && ratDate <= cutoff;
-    const isPA = paDate && paDate >= floorDate && paDate <= cutoff;
+    // All-time Closings: todos los Closed Won, SIN filtro de fecha (incluye los
+    // que no tienen Disbursement Date). Sin filtro de lender ni de exclusión.
+    if (colType === 'cwAll') return stage === 'closed won';
+    const isCW = stage === 'closed won' && disbDate && disbDate >= rangeFloor && disbDate <= cutoff;
+    const isRat = ratDate && ratDate >= rangeFloor && ratDate <= cutoff;
+    const isPA = paDate && paDate >= rangeFloor && paDate <= cutoff;
     if (colType === 'pa') return isPA;
     if (colType === 'rat') return isRat;
     if (colType === 'cw') return isCW;
@@ -227,10 +237,11 @@ export function showOppDetail(key, realtorName, colType) {
 
   const labels = {
     pa: 'Leads w/ Pre-Approval', rat: 'Leads w/ Ratified', cw: 'Leads Closed Won',
-    curPa: 'Curr. Pre-Approval', curRat: 'Curr. Ratified', curCw: 'Curr. Closed Won'
+    curPa: 'Curr. Pre-Approval', curRat: 'Curr. Ratified', curCw: 'Curr. Closed Won',
+    cwAll: 'All-time Closings'
   };
-  const dateLabel = { pa: 'Pre-Approval Date', rat: 'Ratified Date', cw: 'Disbursement Date', curPa: 'Pre-Approval Date', curRat: 'Ratified Date', curCw: 'Disbursement Date' };
-  const stageCls = { pa: 'stage-pa', rat: 'stage-rat', cw: 'stage-cw', curPa: 'stage-pa', curRat: 'stage-rat', curCw: 'stage-cw' };
+  const dateLabel = { pa: 'Pre-Approval Date', rat: 'Ratified Date', cw: 'Disbursement Date', curPa: 'Pre-Approval Date', curRat: 'Ratified Date', curCw: 'Disbursement Date', cwAll: 'Disbursement Date' };
+  const stageCls = { pa: 'stage-pa', rat: 'stage-rat', cw: 'stage-cw', curPa: 'stage-pa', curRat: 'stage-rat', curCw: 'stage-cw', cwAll: 'stage-cw' };
 
   const head = '<tr>' +
     '<th>#</th>' +
@@ -238,6 +249,7 @@ export function showOppDetail(key, realtorName, colType) {
     '<th>Opportunity Name</th>' +
     '<th>Loan Officer</th>' +
     '<th>Branch</th>' +
+    '<th>Lender</th>' +
     '<th>Loan Amount</th>' +
     '<th>' + dateLabel[colType] + '</th>' +
     '<th>Stage</th>' +
@@ -247,6 +259,7 @@ export function showOppDetail(key, realtorName, colType) {
     const oppName = String(getField(row, 'Opportunity Name', 'opportunity name') || '—').trim();
     const lo = String(getField(row, 'Loan Officer', 'loan officer', 'Loan Officers', 'loan officers') || '—').trim();
     const branch = String(getField(row, 'Branch', 'branch') || '—').trim();
+    const lender = String(getField(row, 'Lender', 'lender') || '—').trim();
     const amt = getField(row, 'Loan Amount', 'loan amount', 'Loan #', 'loan #');
     const amtFmt = amt ? '$' + Number(amt).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '—';
     const stage = String(getField(row, 'Stage', 'stage') || '—').trim();
@@ -256,7 +269,7 @@ export function showOppDetail(key, realtorName, colType) {
     let dateVal = null;
     if (colType === 'pa' || colType === 'curPa') dateVal = paDate;
     else if (colType === 'rat' || colType === 'curRat') dateVal = ratDate;
-    else if (colType === 'cw' || colType === 'curCw') dateVal = disbDate;
+    else if (colType === 'cw' || colType === 'curCw' || colType === 'cwAll') dateVal = disbDate;
     const lnNum = String(getField(row, 'Loan #', 'loan #') || '—').trim();
     return '<tr>' +
       '<td style="color:#8899BB;font-size:10px">' + (i + 1) + '</td>' +
@@ -264,6 +277,7 @@ export function showOppDetail(key, realtorName, colType) {
       '<td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="' + oppName + '">' + oppName + '</td>' +
       '<td>' + lo + '</td>' +
       '<td>' + branch + '</td>' +
+      '<td>' + lender + '</td>' +
       '<td class="modal-amount">' + amtFmt + '</td>' +
       '<td class="dt">' + fmtDate(dateVal) + '</td>' +
       '<td><span class="modal-stage ' + stageCls[colType] + '">' + stage + '</span></td>' +
@@ -271,11 +285,12 @@ export function showOppDetail(key, realtorName, colType) {
   }).join('');
 
   const csvData = [
-    ['#', 'Loan #', 'Opportunity Name', 'Loan Officer', 'Branch', 'Loan Amount', dateLabel[colType], 'Stage'],
+    ['#', 'Loan #', 'Opportunity Name', 'Loan Officer', 'Branch', 'Lender', 'Loan Amount', dateLabel[colType], 'Stage'],
     ...filtered.map((row, i) => {
       const oppName = String(getField(row, 'Opportunity Name', 'opportunity name') || '').trim();
       const lo = String(getField(row, 'Loan Officer', 'loan officer', 'Loan Officers', 'loan officers') || '').trim();
       const branch = String(getField(row, 'Branch', 'branch') || '').trim();
+      const lender = String(getField(row, 'Lender', 'lender') || '').trim();
       const amt = getField(row, 'Loan Amount', 'loan amount', 'Loan #', 'loan #');
       const stage = String(getField(row, 'Stage', 'stage') || '').trim();
       const disbDate = parseDate(getField(row, 'Disbursement Date', 'disbursement date'));
@@ -284,15 +299,18 @@ export function showOppDetail(key, realtorName, colType) {
       let dateVal = null;
       if (colType === 'pa' || colType === 'curPa') dateVal = paDate;
       else if (colType === 'rat' || colType === 'curRat') dateVal = ratDate;
-      else if (colType === 'cw' || colType === 'curCw') dateVal = disbDate;
+      else if (colType === 'cw' || colType === 'curCw' || colType === 'cwAll') dateVal = disbDate;
       const lnNum = String(getField(row, 'Loan #', 'loan #') || '').trim();
-      return [i + 1, lnNum, oppName, lo, branch, amt || '', fmtDate(dateVal), stage];
+      return [i + 1, lnNum, oppName, lo, branch, lender, amt || '', fmtDate(dateVal), stage];
     })
   ];
 
+  const rangeText = colType === 'cwAll'
+    ? 'all-time (no date filter)'
+    : 'window: ' + fmtDate(rangeFloor) + ' → ' + fmtDate(cutoff);
   openModal(
     realtorName + ' — ' + labels[colType],
-    filtered.length + ' opportunit' + (filtered.length !== 1 ? 'ies' : 'y') + ' · window: ' + fmtDate(floorDate) + ' → ' + fmtDate(cutoff),
+    filtered.length + ' opportunit' + (filtered.length !== 1 ? 'ies' : 'y') + ' · ' + rangeText,
     head, body, csvData
   );
 }

@@ -84,6 +84,9 @@ async function _runCalc() {
   // Mapas paralelos para inactivos: mismo conteo pero en rango inactFloor..cutoff
   // (los inactivos no tienen nada en la ventana activa de 60 días).
   const cwMapInact = new Map(), ratMapInact = new Map(), paMapInact = new Map();
+  // Cierres histórico: Closed Won SIN filtro de fecha (incluye las que no tienen
+  // Disbursement Date). Sin filtro de lender ni de exclusión — se cuenta todo.
+  const cwAllMap = new Map();
   for (const row of (state.oppData || [])) {
     const ref = getField(row, 'Referred By', 'referred by'); if (!ref || !String(ref).trim()) continue;
     const key = norm(ref);
@@ -98,6 +101,7 @@ async function _runCalc() {
     if (stage !== 'closed lost') {
       if (stage === 'closed won' && disbDate && disbDate >= floorDate && disbDate <= cutoff) cwMap.set(key, (cwMap.get(key) || 0) + 1);
       if (stage === 'closed won' && disbDate && disbDate >= inactFloor && disbDate <= cutoff) cwMapInact.set(key, (cwMapInact.get(key) || 0) + 1);
+      if (stage === 'closed won') cwAllMap.set(key, (cwAllMap.get(key) || 0) + 1);
     }
     if (paDate && paDate >= floorDate && paDate <= cutoff) paMap.set(key, (paMap.get(key) || 0) + 1);
     if (paDate && paDate >= inactFloor && paDate <= cutoff) paMapInact.set(key, (paMapInact.get(key) || 0) + 1);
@@ -176,7 +180,7 @@ async function _runCalc() {
     } else {
       const curCw2 = curCwMap.get(key) || 0, curRat2 = curRatMap.get(key) || 0, curPa2 = curPaMap.get(key) || 0;
       const cwI = cwMapInact.get(key) || 0, paI = paMapInact.get(key) || 0, ratI = ratMapInact.get(key) || 0;
-      state.inactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw: cwI, pa: paI, rat: ratI, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
+      state.inactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw: cwI, pa: paI, rat: ratI, cwAll: cwAllMap.get(key) || 0, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     }
     const existing = state.masterMap.get(key);
     if (!existing || existing.source === 'auto') {
