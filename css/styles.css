@@ -119,6 +119,16 @@ table{width:100%;border-collapse:collapse;font-size:11px;background:white}
 thead{background:#1E3A5F}
 th{text-align:left;padding:12px 10px;font-family:'Barlow',sans-serif;font-weight:700;font-size:10px;color:rgba(255,255,255,0.8);white-space:normal;cursor:pointer;text-transform:uppercase;letter-spacing:.8px;user-select:none;min-width:70px;line-height:1.3;transition:color 0.15s ease,background 0.15s ease}
 th:hover{color:white;background:rgba(255,255,255,0.08)}
+/* El azul del header vive en thead (arriba), no en las celdas: cualquier regla
+   que le ponga background a una celda del header la dejaba blanca (fondo blanco
+   + texto blanco = ilegible) al hacer clic para ordenar. Se le da a cada celda
+   su propio fondo explícito y un hover sólido (no un overlay translúcido).
+   Acotado a las tablas principales (BD #table-head y LO #lo-table-head); las
+   tablas con header propio (modal, unassigned, pl-branch…) no se tocan. La
+   especificidad de id también mantiene azules las cabeceras sticky en hover de
+   fila, así que el parche de más abajo (thead tr:hover .sticky-col) sobra. */
+#table-head th,#lo-table-head th{background:#1E3A5F}
+#table-head th:hover,#lo-table-head th:hover{background:#254A73}
 td{padding:10px 10px;border-bottom:1px solid #F1F5F9;white-space:nowrap;color:#334155;font-size:12px}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#F8FAFC}
@@ -808,8 +818,6 @@ table thead th::after{content:' \2195';opacity:0;font-size:10px;position:absolut
 table thead th:hover::after{opacity:0.6}
 table thead th .sort-icon,table thead th [class*="sort"]{display:inline-block;width:12px;opacity:0;transition:opacity 0.15s ease}
 table thead th:hover .sort-icon,table thead th:hover [class*="sort"]{opacity:0.6}
-/* Causa raíz del parpadeo: la columna sticky del header no debe aclararse en hover de fila */
-thead tr:hover .sticky-col,thead tr:hover .sticky-col-3{background:#1E3A5F}
 
 /* Color de selección en dropdowns (paleta de marca navy) */
 select option:checked,select option:focus{background:#001A40;color:white}
