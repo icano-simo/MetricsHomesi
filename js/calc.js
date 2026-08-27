@@ -121,11 +121,13 @@ async function _runCalc() {
     const branchStr = String(getField(row, 'Branch', 'branch') || '').trim();
     if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], owners: new Map(), allOwners: new Map(), branches: new Map(), convertedCount: 0, fromOppsOnly: true });
     const rec = byRef.get(key);
-    rec.convertedCount++; // 1 convertido por cada oportunidad
     if (ownerStr) { rec.owners.set(ownerStr, (rec.owners.get(ownerStr) || 0) + 1); rec.allOwners.set(ownerStr, (rec.allOwners.get(ownerStr) || 0) + 1); }
     if (branchStr) rec.branches.set(branchStr, (rec.branches.get(branchStr) || 0) + 1);
+    // Una opp sin Created Date no puede producir un lead sintético; sin lead no
+    // hay conversión. Solo cuenta lead + convertido cuando hay fecha.
     if (cd) {
       rec.allDates.push(cd);
+      rec.convertedCount++; // 1 convertido por cada oportunidad con fecha
       if (cd >= floorDate && cd <= cutoff) rec.recentDates.push(cd);
     }
   }
