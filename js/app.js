@@ -20,7 +20,7 @@ import { initLoPipeline, renderLoPipeline, renderLoCwSection, clearLoPipelineFil
 import { initLoTrends, renderLoTrends } from './lo-trends.js';
 import { initLoPerformance, renderLoPerformance } from './lo-performance.js';
 import { initMeetingsReview, renderMeetingsReview, clearMrFilters, markMeetingParticipant, loadMeetingReviews, saveParticipantLabel, toggleDoesNotCount } from './meetings-review.js';
-import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword, hasAppAccess } from './auth.js';
+import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword, hasAppAccess, refreshSession, supabaseAuth } from './auth.js';
 import { loadVisibility } from './visibility.js';
 
 let _zoomLoading = false;
@@ -520,14 +520,24 @@ async function checkAuth() {
     setupLoginForm();
     return false;
   }
-  const user = session.user || {};
-  const email = user.email || '';
+  let user = session.user || {};
+  let email = user.email || '';
   // CAMBIO 2: allowed_apps es el ACL (reemplaza el check de dominio; se
   // administra en un solo lugar y admite correos de otros dominios).
+  // El permiso viaja dentro del JWT. getSession() devuelve el token cacheado en
+  // localStorage: si el acceso se otorgó DESPUÉS del último login, ese token
+  // viejo no lo trae y el usuario legítimo quedaría bloqueado. Antes de mostrar
+  // nada, refrescamos contra el servidor y reevaluamos con el user fresco. Solo
+  // si sigue sin acceso (o el refresh falla, p. ej. refresh token expirado) se
+  // muestra el overlay.
   if (!hasAppAccess(user)) {
-    document.getElementById('auth-overlay').style.display = 'none';
-    showNoAccessOverlay(email);
-    return false;
+    const freshUser = await refreshSession();
+    if (freshUser) { user = freshUser; email = freshUser.email || email; }
+    if (!hasAppAccess(user)) {
+      document.getElementById('auth-overlay').style.display = 'none';
+      showNoAccessOverlay(email);
+      return false;
+    }
   }
   // Verifica si debe cambiar contraseña (primer login)
   const mustChange = await mustChangePassword();
@@ -542,7 +552,13 @@ async function checkAuth() {
   return true;
 }
 
+let _loginFormWired = false;
 function setupLoginForm() {
+  // Idempotente: puede llamarse más de una vez por carga (p. ej. al volver del
+  // overlay de acceso al login). Sin esta bandera, los listeners se acumularían
+  // y cada clic/Enter dispararía varias veces.
+  if (_loginFormWired) return;
+  _loginFormWired = true;
   const btn = document.getElementById('auth-submit');
   const emailInput = document.getElementById('auth-email');
   const passInput = document.getElementById('auth-password');
@@ -585,10 +601,22 @@ function showNoAccessOverlay(email) {
   const ov = document.getElementById('no-access-overlay');
   if (!ov) return;
   ov.style.display = 'flex';
+  // Deja visible el correo de la cuenta para que soporte sepa de quién se trata.
   const emailEl = document.getElementById('no-access-email');
   if (emailEl) emailEl.textContent = email;
+  // "Iniciar sesión": cierra la sesión y deja al usuario en el formulario de
+  // login en un solo clic, sin recargar toda la app (por eso no usamos signOut()
+  // de auth.js, que hace location.reload()).
+  // Asignación directa (no addEventListener): showNoAccessOverlay puede correr
+  // varias veces en la misma carga (overlay → login → overlay), y acumular
+  // listeners haría que cada clic dispare varias veces.
   const btn = document.getElementById('no-access-signout');
-  if (btn) btn.addEventListener('click', async () => { await signOut(); });
+  if (btn) btn.onclick = async () => {
+    await supabaseAuth.auth.signOut();
+    ov.style.display = 'none';
+    document.getElementById('auth-overlay').style.display = 'flex';
+    setupLoginForm();
+  };
 }
 
 function showChangePasswordOverlay() {

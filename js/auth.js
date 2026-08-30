@@ -39,6 +39,16 @@ export async function getAccessToken() {
   return data?.session?.access_token || null;
 }
 
+// Fuerza un refresh contra el servidor para traer el app_metadata actualizado.
+// getSession() devuelve el token cacheado en localStorage; si el permiso se
+// otorgó DESPUÉS del último login, ese token viejo no lo trae. Devuelve el user
+// fresco, o null si el refresh falla (p. ej. refresh token expirado).
+export async function refreshSession() {
+  const { data, error } = await supabaseAuth.auth.refreshSession();
+  if (error) return null;
+  return data?.user || data?.session?.user || null;
+}
+
 // CAMBIO 2: acceso por app. app_metadata solo lo escribe service_role, así que
 // el usuario no puede auto-otorgarse acceso.
 export function hasAppAccess(user) {
