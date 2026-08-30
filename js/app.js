@@ -552,7 +552,13 @@ async function checkAuth() {
   return true;
 }
 
+let _loginFormWired = false;
 function setupLoginForm() {
+  // Idempotente: puede llamarse más de una vez por carga (p. ej. al volver del
+  // overlay de acceso al login). Sin esta bandera, los listeners se acumularían
+  // y cada clic/Enter dispararía varias veces.
+  if (_loginFormWired) return;
+  _loginFormWired = true;
   const btn = document.getElementById('auth-submit');
   const emailInput = document.getElementById('auth-email');
   const passInput = document.getElementById('auth-password');
@@ -601,13 +607,16 @@ function showNoAccessOverlay(email) {
   // "Iniciar sesión": cierra la sesión y deja al usuario en el formulario de
   // login en un solo clic, sin recargar toda la app (por eso no usamos signOut()
   // de auth.js, que hace location.reload()).
+  // Asignación directa (no addEventListener): showNoAccessOverlay puede correr
+  // varias veces en la misma carga (overlay → login → overlay), y acumular
+  // listeners haría que cada clic dispare varias veces.
   const btn = document.getElementById('no-access-signout');
-  if (btn) btn.addEventListener('click', async () => {
+  if (btn) btn.onclick = async () => {
     await supabaseAuth.auth.signOut();
     ov.style.display = 'none';
     document.getElementById('auth-overlay').style.display = 'flex';
     setupLoginForm();
-  });
+  };
 }
 
 function showChangePasswordOverlay() {
