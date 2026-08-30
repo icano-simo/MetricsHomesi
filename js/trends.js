@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { norm, parseDate, fmtDate, getField } from './utils.js';
+import { norm, parseDate, fmtDate, getField, applyOppsOnlyLeads, firstLeadDate } from './utils.js';
 import { visibleOwners } from './visibility.js';
 
 function getAllowedOwners() {
@@ -22,10 +22,13 @@ function calcFromActiveResults(allowedOwners) {
   return result;
 }
 
-// Comparison Windows: replicates _runCalc classification logic exactly
-// - checks state.masterMap for manual assignments (same as calc.js line 118)
-// - falls back to oppOwnerMap (same as calc.js line 122)
-// - includes c4 (Hunting Rescued) in Hunting bucket (same as med.startsWith('Hunting'))
+// Comparison Windows: reconstruye el universo de realtors para un periodo
+// histórico (floorDate..cutoffDate) aplicando la MISMA regla direct-to-opportunity
+// que calc.js (vía applyOppsOnlyLeads), para que la ventana actual y las
+// históricas se calculen con el mismo método y el Hunting/Farming sea comparable.
+// No reproduce _runCalc al 100% (no calcula med completo, branch, ni curCw/etc.),
+// pero sí la clasificación Hunting vs Farming: asignación por masterMap manual,
+// luego owner del lead, luego Opportunity Owner; c2 (New) o c4 (Rescued) → Hunting.
 function calcHistoricalWindow(floorDate, cutoffDate, allowedOwners) {
   const allowedNorm = new Map(allowedOwners.map(o => [norm(o), o]));
   const reactDays = parseInt((document.getElementById('react-days') || {}).value) || 150;
@@ -57,6 +60,14 @@ function calcHistoricalWindow(floorDate, cutoffDate, allowedOwners) {
       }
     }
   }
+
+  // Condición 1 de la regla direct-to-opportunity: "sin lead NUNCA". leadKeys se
+  // toma de byRef ANTES del pase, es decir del universo completo de state.leadsData
+  // (no de los leads del periodo). Así, un realtor con leads reales fuera del
+  // periodo NO recibe lead sintético aunque tenga una opp creada dentro. Luego el
+  // pase agrega los realtors sin lead con opp en floorDate..cutoffDate.
+  const leadKeys = new Set(byRef.keys());
+  applyOppsOnlyLeads(byRef, state.oppData, leadKeys, floorDate, cutoffDate);
 
   const result = new Map(allowedOwners.map(o => [o, { hunting: 0, farming: 0 }]));
 
@@ -156,6 +167,14 @@ export function renderTrends() {
   // Un solo BD visible: no hay comparación entre BDs; sirve solo la de periodos.
   const singleBd = allowedOwners.length === 1;
 
+  // leads_v2 puede no tener histórico: una ventana de comparación anterior al
+  // primer lead disponible mostraría un número parcial y sesgado (solo realtors
+  // sin lead vía el pase direct-to-opportunity). Se bloquea ese periodo.
+  const firstLead = firstLeadDate(state.leadsData);
+  const tooEarlyMsg = firstLead ? ('No hay datos de leads antes del ' + fmtDate(firstLead) + '; elige un periodo posterior') : '';
+  const markTooEarly = labelEl => { if (labelEl) { labelEl.textContent = tooEarlyMsg; labelEl.style.color = '#B83030'; } };
+  const clearWarn = labelEl => { if (labelEl) labelEl.style.color = ''; };
+
   // Current window label — same params as calc.js (no hour reset, matches calc.js floor)
   const cutoffStr = document.getElementById('cutoff-date').value;
   const windowDays = parseInt(document.getElementById('window-days').value) || 60;
@@ -168,22 +187,30 @@ export function renderTrends() {
   // Comparison 1
   const c1CutoffStr = (document.getElementById('trends-c1-cutoff') || {}).value || '';
   const c1FloorStr = (document.getElementById('trends-c1-floor') || {}).value || '';
-  const c1Active = !!(c1CutoffStr && c1FloorStr);
+  let c1Active = !!(c1CutoffStr && c1FloorStr);
   const c1Cutoff = c1Active ? new Date(c1CutoffStr + 'T23:59:59Z') : null;
   const c1Floor = c1Active ? new Date(c1FloorStr + 'T00:00:00Z') : null;
   const c1Days = c1Active ? Math.round((c1Cutoff - c1Floor) / 86400000) : null;
   const c1Label = document.getElementById('trends-c1-label');
-  if (c1Label) c1Label.textContent = c1Active ? fmtDate(c1Floor) + ' – ' + fmtDate(c1Cutoff) + ' (' + c1Days + 'd)' : '—';
+  if (c1Active && firstLead && c1Floor < firstLead) {
+    markTooEarly(c1Label); c1Active = false; // no se calcula este periodo
+  } else if (c1Label) {
+    clearWarn(c1Label); c1Label.textContent = c1Active ? fmtDate(c1Floor) + ' – ' + fmtDate(c1Cutoff) + ' (' + c1Days + 'd)' : '—';
+  }
 
   // Comparison 2
   const c2CutoffStr = (document.getElementById('trends-c2-cutoff') || {}).value || '';
   const c2FloorStr = (document.getElementById('trends-c2-floor') || {}).value || '';
-  const c2Active = !!(c2CutoffStr && c2FloorStr);
+  let c2Active = !!(c2CutoffStr && c2FloorStr);
   const c2Cutoff = c2Active ? new Date(c2CutoffStr + 'T23:59:59Z') : null;
   const c2Floor = c2Active ? new Date(c2FloorStr + 'T00:00:00Z') : null;
   const c2Days = c2Active ? Math.round((c2Cutoff - c2Floor) / 86400000) : null;
   const c2Label = document.getElementById('trends-c2-label');
-  if (c2Label) c2Label.textContent = c2Active ? fmtDate(c2Floor) + ' – ' + fmtDate(c2Cutoff) + ' (' + c2Days + 'd)' : '—';
+  if (c2Active && firstLead && c2Floor < firstLead) {
+    markTooEarly(c2Label); c2Active = false; // no se calcula este periodo
+  } else if (c2Label) {
+    clearWarn(c2Label); c2Label.textContent = c2Active ? fmtDate(c2Floor) + ' – ' + fmtDate(c2Cutoff) + ' (' + c2Days + 'd)' : '—';
+  }
 
   // Un solo BD y sin ventanas de comparación: la tabla queda en una celda.
   // En vez de verse rota, explicá qué falta.

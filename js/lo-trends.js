@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { norm, parseDate, fmtDate, getField, normalizeLO } from './utils.js';
+import { norm, parseDate, fmtDate, getField, normalizeLO, firstLeadDate } from './utils.js';
 
 function getAllowedLOs() {
   return document.getElementById('lo-list').value
@@ -146,6 +146,13 @@ export function renderLoTrends() {
     return;
   }
 
+  // Mismo guard que BD Trends: una ventana de comparación anterior al primer lead
+  // disponible no se calcula (mostraría un periodo sin datos de leads).
+  const firstLead = firstLeadDate(state.leadsData);
+  const tooEarlyMsg = firstLead ? ('No hay datos de leads antes del ' + fmtDate(firstLead) + '; elige un periodo posterior') : '';
+  const markTooEarly = labelEl => { if (labelEl) { labelEl.textContent = tooEarlyMsg; labelEl.style.color = '#B83030'; } };
+  const clearWarn = labelEl => { if (labelEl) labelEl.style.color = ''; };
+
   const cutoffStr = document.getElementById('lo-cutoff-date').value;
   const windowDays = parseInt(document.getElementById('lo-window-days').value) || 60;
   const curCutoff = new Date(cutoffStr + 'T23:59:59Z');
@@ -156,21 +163,29 @@ export function renderLoTrends() {
 
   const c1CutoffStr = (document.getElementById('lo-trends-c1-cutoff') || {}).value || '';
   const c1FloorStr = (document.getElementById('lo-trends-c1-floor') || {}).value || '';
-  const c1Active = !!(c1CutoffStr && c1FloorStr);
+  let c1Active = !!(c1CutoffStr && c1FloorStr);
   const c1Cutoff = c1Active ? new Date(c1CutoffStr + 'T23:59:59Z') : null;
   const c1Floor = c1Active ? new Date(c1FloorStr + 'T00:00:00Z') : null;
   const c1Days = c1Active ? Math.round((c1Cutoff - c1Floor) / 86400000) : null;
   const c1Label = document.getElementById('lo-trends-c1-label');
-  if (c1Label) c1Label.textContent = c1Active ? fmtDate(c1Floor) + ' – ' + fmtDate(c1Cutoff) + ' (' + c1Days + 'd)' : '—';
+  if (c1Active && firstLead && c1Floor < firstLead) {
+    markTooEarly(c1Label); c1Active = false;
+  } else if (c1Label) {
+    clearWarn(c1Label); c1Label.textContent = c1Active ? fmtDate(c1Floor) + ' – ' + fmtDate(c1Cutoff) + ' (' + c1Days + 'd)' : '—';
+  }
 
   const c2CutoffStr = (document.getElementById('lo-trends-c2-cutoff') || {}).value || '';
   const c2FloorStr = (document.getElementById('lo-trends-c2-floor') || {}).value || '';
-  const c2Active = !!(c2CutoffStr && c2FloorStr);
+  let c2Active = !!(c2CutoffStr && c2FloorStr);
   const c2Cutoff = c2Active ? new Date(c2CutoffStr + 'T23:59:59Z') : null;
   const c2Floor = c2Active ? new Date(c2FloorStr + 'T00:00:00Z') : null;
   const c2Days = c2Active ? Math.round((c2Cutoff - c2Floor) / 86400000) : null;
   const c2Label = document.getElementById('lo-trends-c2-label');
-  if (c2Label) c2Label.textContent = c2Active ? fmtDate(c2Floor) + ' – ' + fmtDate(c2Cutoff) + ' (' + c2Days + 'd)' : '—';
+  if (c2Active && firstLead && c2Floor < firstLead) {
+    markTooEarly(c2Label); c2Active = false;
+  } else if (c2Label) {
+    clearWarn(c2Label); c2Label.textContent = c2Active ? fmtDate(c2Floor) + ' – ' + fmtDate(c2Cutoff) + ' (' + c2Days + 'd)' : '—';
+  }
 
   const curData = calcLoFromActiveResults(allowedLOs);
   const c1Data = c1Active ? calcLoHistoricalWindow(c1Floor, c1Cutoff, allowedLOs) : null;

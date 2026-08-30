@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { bus } from './events.js';
 import { norm, parseDate, fmtNow } from './utils.js';
-import { getField } from './utils.js';
+import { getField, applyOppsOnlyLeads } from './utils.js';
 import { loadDataFromSupabase } from './supabase.js';
 
 export async function runCalc() {
@@ -119,32 +119,14 @@ async function _runCalc() {
     else if (isPA) curPaMap.set(key, (curPaMap.get(key) || 0) + 1);
   }
 
-  // Realtors que llegaron directo a oportunidad SIN ningún lead real. Regla de
-  // negocio: cada oportunidad cuenta como 1 lead Y 1 lead convertido (llegar
-  // directo a opp = lead muy caliente). Solo aplica cuando el realtor tiene
-  // CERO leads reales; los que ya tienen leads no se tocan. La fecha del lead
-  // sintético es el Created Date de la oportunidad. Se marca fromOppsOnly para
-  // que la tabla y el modal los muestren distinguibles. La clasificación
-  // activo/inactivo sale de la lógica existente con estas fechas sintéticas.
-  for (const row of (state.oppData || [])) {
-    const ref = getField(row, 'Referred By', 'referred by'); if (!ref || !String(ref).trim()) continue;
-    const key = norm(ref), name = String(ref).trim();
-    if (leadKeys.has(key)) continue; // tiene leads reales → intacto
-    const cd = parseDate(getField(row, 'Created Date', 'created date'));
-    const ownerStr = String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim();
-    const branchStr = String(getField(row, 'Branch', 'branch') || '').trim();
-    if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], owners: new Map(), allOwners: new Map(), branches: new Map(), convertedCount: 0, fromOppsOnly: true });
-    const rec = byRef.get(key);
-    if (ownerStr) { rec.owners.set(ownerStr, (rec.owners.get(ownerStr) || 0) + 1); rec.allOwners.set(ownerStr, (rec.allOwners.get(ownerStr) || 0) + 1); }
-    if (branchStr) rec.branches.set(branchStr, (rec.branches.get(branchStr) || 0) + 1);
-    // Una opp sin Created Date no puede producir un lead sintético; sin lead no
-    // hay conversión. Solo cuenta lead + convertido cuando hay fecha.
-    if (cd) {
-      rec.allDates.push(cd);
-      rec.convertedCount++; // 1 convertido por cada oportunidad con fecha
-      if (cd >= floorDate && cd <= cutoff) rec.recentDates.push(cd);
-    }
-  }
+  // Realtors direct-to-opportunity: los que nunca mandaron un lead y solo tienen
+  // oportunidades cuentan como realtors. Cada opp = 1 lead + 1 convertido, con la
+  // fecha del lead = Created Date de la opp, y la clasificación activo/inactivo
+  // sale de la lógica existente con esas fechas sintéticas. El mismo pase lo usa
+  // trends.js (calcHistoricalWindow) para que ambos módulos apliquen una sola
+  // regla. leadKeys se evalúa contra state.leadsData COMPLETO (sin filtrar por
+  // periodo): "sin lead nunca", no "sin lead en este periodo".
+  applyOppsOnlyLeads(byRef, state.oppData, leadKeys, floorDate, cutoff);
 
   state.activeResults = []; state.inactiveResults = []; state.unassignedResults = [];
 
