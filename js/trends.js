@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { norm, parseDate, fmtDate, getField } from './utils.js';
+import { norm, parseDate, fmtDate, getField, applyOppsOnlyLeads } from './utils.js';
 import { visibleOwners } from './visibility.js';
 
 function getAllowedOwners() {
@@ -22,10 +22,13 @@ function calcFromActiveResults(allowedOwners) {
   return result;
 }
 
-// Comparison Windows: replicates _runCalc classification logic exactly
-// - checks state.masterMap for manual assignments (same as calc.js line 118)
-// - falls back to oppOwnerMap (same as calc.js line 122)
-// - includes c4 (Hunting Rescued) in Hunting bucket (same as med.startsWith('Hunting'))
+// Comparison Windows: reconstruye el universo de realtors para un periodo
+// histórico (floorDate..cutoffDate) aplicando la MISMA regla direct-to-opportunity
+// que calc.js (vía applyOppsOnlyLeads), para que la ventana actual y las
+// históricas se calculen con el mismo método y el Hunting/Farming sea comparable.
+// No reproduce _runCalc al 100% (no calcula med completo, branch, ni curCw/etc.),
+// pero sí la clasificación Hunting vs Farming: asignación por masterMap manual,
+// luego owner del lead, luego Opportunity Owner; c2 (New) o c4 (Rescued) → Hunting.
 function calcHistoricalWindow(floorDate, cutoffDate, allowedOwners) {
   const allowedNorm = new Map(allowedOwners.map(o => [norm(o), o]));
   const reactDays = parseInt((document.getElementById('react-days') || {}).value) || 150;
@@ -57,6 +60,14 @@ function calcHistoricalWindow(floorDate, cutoffDate, allowedOwners) {
       }
     }
   }
+
+  // Condición 1 de la regla direct-to-opportunity: "sin lead NUNCA". leadKeys se
+  // toma de byRef ANTES del pase, es decir del universo completo de state.leadsData
+  // (no de los leads del periodo). Así, un realtor con leads reales fuera del
+  // periodo NO recibe lead sintético aunque tenga una opp creada dentro. Luego el
+  // pase agrega los realtors sin lead con opp en floorDate..cutoffDate.
+  const leadKeys = new Set(byRef.keys());
+  applyOppsOnlyLeads(byRef, state.oppData, leadKeys, floorDate, cutoffDate);
 
   const result = new Map(allowedOwners.map(o => [o, { hunting: 0, farming: 0 }]));
 

@@ -53,6 +53,43 @@ export function initials(name) {
   return name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
 }
 
+// Regla direct-to-opportunity (compartida por calc.js y trends.js para que no se
+// desincronicen). Realtors que nunca mandaron un lead y solo tienen oportunidades
+// SÍ cuentan como realtors: cada oportunidad vale 1 lead Y 1 convertido (llegar
+// directo a opp = lead muy caliente).
+//
+// Muta `byRef` agregando los registros sintéticos. DOS condiciones, ambas
+// obligatorias:
+//   1. El realtor no tiene NINGÚN lead real en toda la data. Esto es lo que
+//      significa `leadKeys`: el set de claves construido desde state.leadsData
+//      COMPLETO (no filtrado por periodo). Por eso se pasa desde afuera.
+//   2. El Created Date de la oportunidad cae dentro de floorDate..cutoff del
+//      periodo que se está calculando (para recentDates / "en periodo").
+// Una opp sin Created Date no puede producir un lead sintético; sin lead no hay
+// conversión, así que solo suma cuando hay fecha. Owner = Opportunity Owner.
+//
+// El registro se crea con la forma completa que usa calc.js; trends.js solo lee
+// allDates/recentDates/owners y los campos extra los ignora.
+export function applyOppsOnlyLeads(byRef, oppData, leadKeys, floorDate, cutoff) {
+  for (const row of (oppData || [])) {
+    const ref = getField(row, 'Referred By', 'referred by'); if (!ref || !String(ref).trim()) continue;
+    const key = norm(ref), name = String(ref).trim();
+    if (leadKeys.has(key)) continue; // tiene leads reales → intacto
+    const cd = parseDate(getField(row, 'Created Date', 'created date'));
+    const ownerStr = String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim();
+    const branchStr = String(getField(row, 'Branch', 'branch') || '').trim();
+    if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], owners: new Map(), allOwners: new Map(), branches: new Map(), convertedCount: 0, fromOppsOnly: true });
+    const rec = byRef.get(key);
+    if (ownerStr) { rec.owners.set(ownerStr, (rec.owners.get(ownerStr) || 0) + 1); rec.allOwners.set(ownerStr, (rec.allOwners.get(ownerStr) || 0) + 1); }
+    if (branchStr) rec.branches.set(branchStr, (rec.branches.get(branchStr) || 0) + 1);
+    if (cd) {
+      rec.allDates.push(cd);
+      rec.convertedCount++; // 1 convertido por cada oportunidad con fecha
+      if (cd >= floorDate && cd <= cutoff) rec.recentDates.push(cd);
+    }
+  }
+}
+
 export function normalizeLO(name) {
   const n = norm(name);
   if (state.loReferenceMap) {
