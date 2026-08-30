@@ -80,12 +80,19 @@ export function applyOppsOnlyLeads(byRef, oppData, leadKeys, floorDate, cutoff) 
     const branchStr = String(getField(row, 'Branch', 'branch') || '').trim();
     if (!byRef.has(key)) byRef.set(key, { name, allDates: [], recentDates: [], owners: new Map(), allOwners: new Map(), branches: new Map(), convertedCount: 0, fromOppsOnly: true });
     const rec = byRef.get(key);
-    if (ownerStr) { rec.owners.set(ownerStr, (rec.owners.get(ownerStr) || 0) + 1); rec.allOwners.set(ownerStr, (rec.allOwners.get(ownerStr) || 0) + 1); }
+    // allOwners acumula el owner de CUALQUIER opp (respaldo para resolver owner).
+    if (ownerStr) rec.allOwners.set(ownerStr, (rec.allOwners.get(ownerStr) || 0) + 1);
     if (branchStr) rec.branches.set(branchStr, (rec.branches.get(branchStr) || 0) + 1);
     if (cd) {
       rec.allDates.push(cd);
       rec.convertedCount++; // 1 convertido por cada oportunidad con fecha
-      if (cd >= floorDate && cd <= cutoff) rec.recentDates.push(cd);
+      if (cd >= floorDate && cd <= cutoff) {
+        rec.recentDates.push(cd);
+        // owners solo cuenta la opp DENTRO del periodo, igual que un realtor real
+        // (cuyo rec.owners solo acumula leads del periodo). Así la regla de owner
+        // es la misma para ambos tipos. Medido: 0 realtors cambian de owner hoy.
+        if (ownerStr) rec.owners.set(ownerStr, (rec.owners.get(ownerStr) || 0) + 1);
+      }
     }
   }
 }
