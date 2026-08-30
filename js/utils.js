@@ -53,6 +53,20 @@ export function initials(name) {
   return name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
 }
 
+// Fecha del primer lead disponible en los datos (mínimo Created Date). Se calcula
+// de los datos, no fija: si se carga histórico, el límite se mueve solo. Se usa
+// para bloquear ventanas de comparación de Trends anteriores a que haya leads
+// (antes de esa fecha el pase direct-to-opportunity mostraría un número parcial
+// y sesgado: solo realtors que nunca mandaron leads). Devuelve null si no hay.
+export function firstLeadDate(leadsData) {
+  let min = null;
+  for (const row of (leadsData || [])) {
+    const cd = parseDate(getField(row, 'Created Date', 'Create Date', 'created date', 'create date'));
+    if (cd && (!min || cd < min)) min = cd;
+  }
+  return min;
+}
+
 // Regla direct-to-opportunity (compartida por calc.js y trends.js para que no se
 // desincronicen). Realtors que nunca mandaron un lead y solo tienen oportunidades
 // SÍ cuentan como realtors: cada oportunidad vale 1 lead Y 1 convertido (llegar
