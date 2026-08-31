@@ -9,14 +9,18 @@ import { matchesStrategy } from './strategy.js';
 // así que NO deben verse idénticos a un lead real en el reporte.
 const OPP_BADGE = '<span title="Direct-to-opportunity: opportunities but no leads. Each opportunity counts as 1 lead and 1 conversion." style="display:inline-block;margin-left:4px;font-size:8px;font-weight:700;color:#8A5A00;background:#FFE9B3;border-radius:3px;padding:1px 4px;vertical-align:middle;letter-spacing:.3px">OPP</span>';
 
-// Distintivo NPPM: contratado vs referido (con por quién). Un realtor NPPM cuenta
-// del lado NPPM (sale del B2B de su BD); esto solo lo etiqueta en pantalla.
+// NPPM badge: contracted vs referred (and by which NPPM). An NPPM realtor counts
+// on the NPPM side (it leaves their BD's B2B); this only labels it on screen.
+// For a referred realtor the badge shows who referred them (referred_by_nppm),
+// e.g. "NPPM <- Fred Gomez" — English UI copy.
 function stratBadge(r) {
   if (!r || r.strategy !== 'NPPM') return '';
   const referred = r.isNppmReferred && !r.isNppmContracted;
-  const label = referred ? 'NPPM · ref' : 'NPPM';
-  const by = referred && r.referredByNppm ? (' — referido por ' + r.referredByNppm) : (referred ? ' — referido por un NPPM' : ' — contratado');
-  const title = 'Estrategia NPPM' + by;
+  const by = r.referredByNppm ? String(r.referredByNppm) : '';
+  const label = referred ? ('NPPM &#8592; ' + (by || 'referred')) : 'NPPM';
+  const title = referred
+    ? ('NPPM strategy — referred by ' + (by || 'an NPPM'))
+    : 'NPPM strategy — contracted';
   return '<span title="' + title + '" style="display:inline-block;margin-left:4px;font-size:8px;font-weight:700;color:#4C1D95;background:#EDE9FE;border-radius:3px;padding:1px 4px;vertical-align:middle;letter-spacing:.3px">' + label + '</span>';
 }
 

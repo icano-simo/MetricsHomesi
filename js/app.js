@@ -23,8 +23,8 @@ import { initMeetingsReview, renderMeetingsReview, clearMrFilters, markMeetingPa
 import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword, hasAppAccess, refreshSession, supabaseAuth } from './auth.js';
 import { loadVisibility } from './visibility.js';
 
-// Selector de estrategia (Todas/B2B/NPPM) — display-only. Re-renderiza todas las
-// vistas strategy-aware (B2B y LO). El cálculo no se recalcula; solo se re-filtra.
+// Strategy selector (All / B2B / NPPM) — display-only. Re-renders every
+// strategy-aware view (B2B and LO). Nothing is recomputed; it only re-filters.
 function setStrategy(val) {
   if (val !== 'all' && val !== 'b2b' && val !== 'nppm') return;
   state.strategyFilter = val;

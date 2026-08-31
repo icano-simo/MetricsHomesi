@@ -1,14 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Selector de estrategia (NPPM vs B2B) — SOLO afecta lo que se MUESTRA, nunca el
-// cálculo. Mismo patrón que visibility.js: calc.js agrupa/clasifica con TODOS los
-// datos y etiqueta cada resultado con su strategy (leída de realtor_owner_map_v2,
-// fuente b2b_marts.dim_realtor_strategy). Cada vista filtra sus filas con
-// matchesStrategy, igual que ya filtra por isOwnerVisible. Los dos filtros se
-// combinan (visibilidad decide qué BDs; estrategia, qué parte del negocio).
+// Strategy selector (NPPM vs B2B) — DISPLAY-only, never affects the calculation.
+// Same pattern as visibility.js: calc.js groups/classifies with ALL the data and
+// tags each result with its strategy (read from realtor_owner_map_v2, sourced
+// from b2b_marts.dim_realtor_strategy). Each view filters its rows with
+// matchesStrategy, just like it already filters by isOwnerVisible. The two
+// filters combine (visibility decides which BDs; strategy, which part of the
+// business).
 //
-// Regla de negocio: un realtor NPPM (contratado O referido por un contratado)
-// sale del B2B de su BD. Un realtor sin strategy conocida cuenta como B2B (caso
-// general — mismo criterio que el COALESCE del sync).
+// Business rule: an NPPM realtor (contracted OR referred by a contracted one)
+// leaves their BD's B2B. A realtor with no known strategy counts as B2B (the
+// general case — same criterion as the sync's COALESCE).
+// UI copy in this feature is in English (selector labels, badges).
 // ─────────────────────────────────────────────────────────────────────────────
 import { state } from './state.js';
 import { norm, getField } from './utils.js';

@@ -4,13 +4,17 @@ import { fmtDate } from './utils.js';
 import { BADGE } from './config.js';
 import { matchesStrategy } from './strategy.js';
 
-// Badge NPPM (contratado/referido) — igual que en la sección B2B.
+// NPPM badge (contracted/referred, and by which NPPM) — same as the B2B section.
+// English UI copy; referred badge shows the referrer name (referred_by_nppm).
 function stratBadge(r) {
   if (!r || r.strategy !== 'NPPM') return '';
   const referred = r.isNppmReferred && !r.isNppmContracted;
-  const label = referred ? 'NPPM · ref' : 'NPPM';
-  const by = referred && r.referredByNppm ? (' — referido por ' + r.referredByNppm) : (referred ? ' — referido por un NPPM' : ' — contratado');
-  return '<span title="Estrategia NPPM' + by + '" style="display:inline-block;margin-left:4px;font-size:8px;font-weight:700;color:#4C1D95;background:#EDE9FE;border-radius:3px;padding:1px 4px;vertical-align:middle;letter-spacing:.3px">' + label + '</span>';
+  const by = r.referredByNppm ? String(r.referredByNppm) : '';
+  const label = referred ? ('NPPM &#8592; ' + (by || 'referred')) : 'NPPM';
+  const title = referred
+    ? ('NPPM strategy — referred by ' + (by || 'an NPPM'))
+    : 'NPPM strategy — contracted';
+  return '<span title="' + title + '" style="display:inline-block;margin-left:4px;font-size:8px;font-weight:700;color:#4C1D95;background:#EDE9FE;border-radius:3px;padding:1px 4px;vertical-align:middle;letter-spacing:.3px">' + label + '</span>';
 }
 
 export function renderLoSummary(_w, filtActive, filtInactive, cutoffDate, floorDate, inactFrom) {
