@@ -11,6 +11,7 @@
 // general — mismo criterio que el COALESCE del sync).
 // ─────────────────────────────────────────────────────────────────────────────
 import { state } from './state.js';
+import { norm, getField } from './utils.js';
 
 // ¿La fila (resultado de calc con .strategy) entra con el filtro activo?
 export function matchesStrategy(row) {
@@ -18,4 +19,24 @@ export function matchesStrategy(row) {
   if (f === 'all') return true;
   const isNppm = !!row && row.strategy === 'NPPM';
   return f === 'nppm' ? isNppm : !isNppm;
+}
+
+// ¿La estrategia de una clave (realtor_key) entra con el filtro activo?
+// Para vistas que agrupan por realtor_key sin un resultado ya etiquetado.
+export function keyMatchesStrategy(key) {
+  const f = state.strategyFilter || 'all';
+  if (f === 'all') return true;
+  const m = key ? state.realtorOwnerMap.get(key) : null;
+  const isNppm = !!(m && m.strategy === 'NPPM');
+  return f === 'nppm' ? isNppm : !isNppm;
+}
+
+// ¿La oportunidad/lead (fila cruda con Referred By) entra con el filtro activo?
+// La estrategia es del realtor: se resuelve por realtor_key = norm(referred_by).
+export function oppMatchesStrategy(row) {
+  const f = state.strategyFilter || 'all';
+  if (f === 'all') return true;
+  const ref = getField(row, 'Referred By', 'referred by');
+  const key = ref ? norm(String(ref)) : '';
+  return keyMatchesStrategy(key);
 }

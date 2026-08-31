@@ -3,6 +3,7 @@ import { norm, parseDate, fmtDate, getField, initials } from './utils.js';
 import { openModal, pushModalView } from './modal.js';
 import { renderModalFilters } from './modal-filters.js';
 import { visibleOwners } from './visibility.js';
+import { oppMatchesStrategy } from './strategy.js';
 import { dl } from './export.js';
 
 // ── Healthiness breakdown (compartido: pipeline, lo-pipeline, performance, lo-performance) ──
@@ -304,7 +305,8 @@ export function initPipeline() {
 
   const cwOpps = (state.oppData || []).filter(row =>
     String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() === 'closed won' &&
-    allowedNorm.has(norm(String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim()))
+    allowedNorm.has(norm(String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim())) &&
+    oppMatchesStrategy(row)
   );
   const branches = [...new Set(cwOpps.map(r => {
     const b = String(getField(r, 'Branch', 'branch') || '').trim();
@@ -325,6 +327,7 @@ export function renderPipeline() {
   _healthCacheP.clear();
 
   const openOpps = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     const stage = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
     if (!stage) return false;
     if (stage === 'closed won' || stage === 'closed lost') return false;
@@ -472,6 +475,7 @@ export function showPipelineStageDetail(owner, stage) {
   const allowedNorm = new Set(getAllowedOwners().map(o => norm(o)));
 
   const rows = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     const stageLc = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
     if (!stageLc) return false;
     if (stageLc === 'closed won' || stageLc === 'closed lost') return false;
@@ -611,6 +615,7 @@ export function renderClosedWon() {
   const inactiveCutoff = getInactiveCutoff();
 
   const allCW = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed won') return false;
     const currStatus = String(getField(row, 'Current Status', 'current status', 'current_status') || '').trim().toLowerCase();
     if (currStatus.includes('archive loan')) return false;

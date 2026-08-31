@@ -3,6 +3,7 @@ import { norm, parseDate, fmtDate, getField, normalizeLO } from './utils.js';
 import { openModal, pushModalView } from './modal.js';
 import { renderModalFilters } from './modal-filters.js';
 import { kpiGoals } from './performance.js';
+import { oppMatchesStrategy, keyMatchesStrategy } from './strategy.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
 const _healthCacheLoPerf = new Map();
@@ -52,6 +53,7 @@ function calcLoMeetingInvites(loNames, startDate, endDate) {
     const e = (entry && typeof entry === 'object') ? entry : {};
     const loRaw = String(e.loan_officers || '').trim();
     if (!loRaw || !targets.has(normalizeLO(loRaw))) continue;
+    if (!keyMatchesStrategy(key)) continue; // selector de estrategia (display-only)
     const inviteD = parseDate(e.invite_sent_date);
     const attendD = parseDate(e.meeting_attended_date);
     if (!inRange(inviteD) && !inRange(attendD)) continue;
@@ -64,7 +66,7 @@ function calcLoMeetingInvites(loNames, startDate, endDate) {
       branch: String(e.branch || '').trim() || '—',
       owner: String(e.owner || '').trim() || '—',
       inviteD, attendD,
-      nppm: e.nppm === true,
+      nppm: e.isNppmContracted === true, // corregido: contratado, no la casilla sola
       leadCount: leads.length,
       firstLeadDate: leadDates[0] || null,
       lastLeadDate: leadDates[leadDates.length - 1] || null,
@@ -92,6 +94,7 @@ function matchLo(row, lo) {
 function calcLoLoanAmount(lo, start, end) {
   let total = 0;
   for (const row of (state.oppData || [])) {
+    if (!oppMatchesStrategy(row)) continue;
     if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed won') continue;
     if (!matchLo(row, lo)) continue;
     const disbDate = parseDate(getField(row, 'Disbursement Date', 'disbursement date'));
@@ -107,6 +110,7 @@ function calcLoLoanAmount(lo, start, end) {
 function calcLoPipelineActivity(lo, start, end) {
   let created = 0, stillActive = 0;
   for (const row of (state.oppData || [])) {
+    if (!oppMatchesStrategy(row)) continue;
     if (!matchLo(row, lo)) continue;
     const cd = parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'));
     if (!cd || cd < start || cd > end) continue;
@@ -360,6 +364,7 @@ document.addEventListener('click', e => {
 
 function buildLoLoanModal(loNames, lo, start, end, label) {
   const rows = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed won') return false;
     if (!loNames.some(l => matchLo(row, l))) return false;
     const d = parseDate(getField(row, 'Disbursement Date', 'disbursement date'));
@@ -402,6 +407,7 @@ function buildLoLoanModal(loNames, lo, start, end, label) {
 
 function buildLoPipelineModal(loNames, lo, start, end, label) {
   const rows = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (!loNames.some(l => matchLo(row, l))) return false;
     const cd = parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'));
     return cd && cd >= start && cd <= end;
@@ -588,6 +594,7 @@ export function renderLoPerformance() {
 
   const byRef = new Map();
   for (const row of (state.leadsData || [])) {
+    if (!oppMatchesStrategy(row)) continue;
     const refRaw = String(row[refByField] || '').trim();
     if (!refRaw) continue;
     const key = norm(refRaw);
@@ -761,6 +768,7 @@ export function renderLoPerformance() {
   const openStageRows = { 'Need Analysis': [], 'Qualification': [], 'Proposal': [], 'Negotiation': [] };
   const openAllRows = [];
   for (const row of (state.oppData || [])) {
+    if (!oppMatchesStrategy(row)) continue;
     if (!loNames.some(l => matchLo(row, l))) continue;
     const st = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
     if (!st || st === 'closed won' || st === 'closed lost') continue;
@@ -1089,6 +1097,7 @@ export function renderLoPerformance() {
     const byBD = new Map();
     let count = 0, totalAmount = 0;
     for (const row of (state.oppData || [])) {
+      if (!oppMatchesStrategy(row)) continue;
       if (!loNames.some(l => matchLo(row, l))) continue;
       if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed won') continue;
       const disb = parseDate(getField(row, 'Disbursement Date', 'disbursement date'));
@@ -1188,6 +1197,7 @@ export function renderLoPerformance() {
     let total = 0;
     const reached = { 'Reached Ratified': 0, 'Reached Pre-Approval': 0, 'Reached Pre-Qualification': 0 };
     for (const row of (state.oppData || [])) {
+      if (!oppMatchesStrategy(row)) continue;
       if (!loNames.some(l => matchLo(row, l))) continue;
       if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed lost') continue;
       const ratifD = parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date'));
@@ -1294,6 +1304,7 @@ export function renderLoPerformance() {
 
   // ══ Opportunities Created (LO filter, breakdown por stage, agrupado por realtor) ══
   const oppcFilter = (s, e) => (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (!loNames.some(l => matchLo(row, l))) return false;
     const cd = parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'));
     if (!cd || cd < s || cd > e) return false;

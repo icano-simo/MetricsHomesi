@@ -23,18 +23,27 @@ import { initMeetingsReview, renderMeetingsReview, clearMrFilters, markMeetingPa
 import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword, hasAppAccess, refreshSession, supabaseAuth } from './auth.js';
 import { loadVisibility } from './visibility.js';
 
-// Selector de estrategia (Todas/B2B/NPPM) — display-only. Re-renderiza las vistas
-// B2B que ya son strategy-aware. (Pipeline, Performance y LO se suman en la
-// próxima tanda; hasta entonces ignoran el selector.)
+// Selector de estrategia (Todas/B2B/NPPM) — display-only. Re-renderiza todas las
+// vistas strategy-aware (B2B y LO). El cálculo no se recalcula; solo se re-filtra.
 function setStrategy(val) {
   if (val !== 'all' && val !== 'b2b' && val !== 'nppm') return;
   state.strategyFilter = val;
   document.querySelectorAll('.strat-btn').forEach(b =>
     b.classList.toggle('active', b.getAttribute('data-strat') === val));
+  // Sección B2B
   if (state.activeResults.length || state.inactiveResults.length) {
     try { renderTable(); } catch (e) { console.warn('[strategy] renderTable', e.message); }
     try { refreshScorecard(); } catch (e) { console.warn('[strategy] scorecard', e.message); }
+    try { renderPipeline(); } catch (e) { console.warn('[strategy] pipeline', e.message); }
+    try { renderClosedWon(); } catch (e) { console.warn('[strategy] closedWon', e.message); }
     try { renderTrends(); } catch (e) { console.warn('[strategy] trends', e.message); }
+    try { renderPerformance(); } catch (e) { console.warn('[strategy] performance', e.message); }
+  }
+  // Sección LO (modelo lazy: re-render de la pestaña activa + marcar el resto)
+  if (state.loActiveResults.length || state.loInactiveResults.length) {
+    try { renderLoTable(); } catch (e) { console.warn('[strategy] loTable', e.message); }
+    state.loPendingRender = new Set(['sc', 'pipeline', 'perf', 'trends', 'assign']);
+    try { renderLoActiveTab(); } catch (e) { console.warn('[strategy] loActiveTab', e.message); }
   }
 }
 
