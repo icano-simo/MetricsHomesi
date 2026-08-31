@@ -32,9 +32,36 @@ export async function getCurrentUser() {
   return data.user;
 }
 
-// CAMBIO 1: token de la sesión del usuario, para que las lecturas viajen con
-// el JWT (y RLS pueda filtrar con auth.jwt()). Cae a null si no hay sesión.
+// En un refresh la sesión se hidrata de localStorage de forma ASÍNCRONA. Si se
+// hacen llamadas dependientes del JWT antes de que esté resuelta, salen sin token
+// (antes caían a la anon key) y las tablas authenticated-only dan 42501. Esto
+// resuelve UNA sola vez cuando la sesión está lista: onAuthStateChange emite
+// INITIAL_SESSION al terminar la hidratación; getSession() es el respaldo; hay un
+// timeout de seguridad para que el arranque nunca quede colgado.
+let _sessionReady = null;
+export function whenSessionReady() {
+  if (_sessionReady) return _sessionReady;
+  _sessionReady = new Promise((resolve) => {
+    let done = false;
+    const finish = (s) => { if (!done) { done = true; resolve(s || null); } };
+    try {
+      supabaseAuth.auth.onAuthStateChange((event, session) => {
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') finish(session);
+      });
+    } catch (_) {}
+    // getSession() espera la init interna del cliente; respaldo por si el evento
+    // ya se emitió antes de suscribirnos.
+    supabaseAuth.auth.getSession().then(({ data }) => { if (data && data.session) finish(data.session); }).catch(() => {});
+    setTimeout(() => finish(null), 5000);
+  });
+  return _sessionReady;
+}
+
+// Token de la sesión del usuario, para que las lecturas viajen con el JWT (y RLS
+// pueda filtrar con auth.jwt()). Espera a que la sesión esté hidratada antes de
+// leer el token. Devuelve null SOLO si de verdad no hay sesión.
 export async function getAccessToken() {
+  await whenSessionReady();
   const { data } = await supabaseAuth.auth.getSession();
   return data?.session?.access_token || null;
 }

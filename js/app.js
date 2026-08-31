@@ -20,7 +20,7 @@ import { initLoPipeline, renderLoPipeline, renderLoCwSection, clearLoPipelineFil
 import { initLoTrends, renderLoTrends } from './lo-trends.js';
 import { initLoPerformance, renderLoPerformance } from './lo-performance.js';
 import { initMeetingsReview, renderMeetingsReview, clearMrFilters, markMeetingParticipant, loadMeetingReviews, saveParticipantLabel, toggleDoesNotCount } from './meetings-review.js';
-import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword, hasAppAccess, refreshSession, supabaseAuth } from './auth.js';
+import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword, hasAppAccess, refreshSession, supabaseAuth, whenSessionReady } from './auth.js';
 import { loadVisibility } from './visibility.js';
 
 // Strategy selector (All / B2B / NPPM) — display-only. Re-renders every
@@ -320,6 +320,12 @@ document.addEventListener('click', e => {
 async function initApp() {
   setStatus('load', '⏳ Connecting to Supabase...');
 
+  // Esperar a que la sesión esté hidratada ANTES de cualquier llamada que dependa
+  // del JWT (visibilidad, upload_meta, master_assignments, kpi_settings, etc.).
+  // En un refresh la sesión se resuelve async; sin este gate varias llamadas del
+  // arranque salían como anon (42501) y la visibilidad degradaba en silencio.
+  await whenSessionReady();
+
   // Visibilidad por BD (solo DISPLAY). Debe cargar antes de renderizar.
   // La usuaria sin acceso total no ve las pantallas de Loan Officer.
   await loadVisibility();
@@ -361,15 +367,20 @@ async function initApp() {
   }
 
   try {
-    const meta = await sbFetch('upload_meta?select=file_type,file_name,row_count,uploaded_at');
     state.dbConnected = true;
-
-    // map file_type → card id suffix
-    const typeToCard = {
-      leads: 'leads', opp: 'opp', calls: 'calls',
-      lo_reference: 'loref', zoom_meetings: 'zoom'
-    };
     let hasData = false;
+
+    // Últimas cargas (solo informativo) en su PROPIO try/catch: que falle nunca
+    // debe tumbar el arranque. Antes su 42501 subía al catch general y abortaba
+    // todo (grupos de config/datos + habilitar el botón).
+    try {
+      const meta = await sbFetch('upload_meta?select=file_type,file_name,row_count,uploaded_at');
+
+      // map file_type → card id suffix
+      const typeToCard = {
+        leads: 'leads', opp: 'opp', calls: 'calls',
+        lo_reference: 'loref', zoom_meetings: 'zoom'
+      };
 
     for (const m of (meta || [])) {
       const type = m.file_type;
@@ -393,6 +404,9 @@ async function initApp() {
         savedEl.classList.remove('hidden');
       }
       if (type === 'leads' || type === 'opp') hasData = true;
+    }
+    } catch (e) {
+      console.warn('[initApp] upload_meta:', e.message);
     }
 
     // GRUPO 1 — configuración y tablas independientes en paralelo
@@ -430,8 +444,8 @@ async function initApp() {
             offset += PAGE;
           }
         })().catch(e => console.warn('[initApp] realtor_owner_map:', e.message)),
-        loadLoReferenceMap(),
-        loadLoMasterMap(),
+        loadLoReferenceMap().catch(e => console.warn('[initApp] lo_reference:', e.message)),
+        loadLoMasterMap().catch(e => console.warn('[initApp] lo_master:', e.message)),
         loadKpiSettings().catch(e => console.warn('[initApp] kpi:', e.message)),
         loadCallsData().catch(e => console.warn('[initApp] calls:', e.message)),
         loadMeetingReviews().catch(e => console.warn('[initApp] meetingReviews:', e.message)),
@@ -474,14 +488,18 @@ async function initApp() {
       console.warn('[initApp] data group failed:', e.message);
     }
 
-    if (hasData) {
+    if (hasData || (state.leadsData && state.leadsData.length > 0)) {
       setStatus('ok', 'Supabase connected — saved data available. Press Calculate to view results.');
-      document.getElementById('run-btn').disabled = false;
     } else {
-      setStatus('ok', 'Supabase connected — upload your files to get started.');
+      setStatus('ok', 'Supabase connected — press Calculate to load data.');
     }
   } catch (e) {
     setStatus('err', '❌ Error: ' + e.message);
+  } finally {
+    // El botón SIEMPRE queda habilitado al terminar el arranque: ningún paso
+    // secundario debe dejarlo gris. runCalc carga los datos si faltan.
+    const runBtn = document.getElementById('run-btn');
+    if (runBtn) runBtn.disabled = false;
   }
 }
 
