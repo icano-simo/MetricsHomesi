@@ -4,6 +4,7 @@ import { sbFetch } from './supabase.js';
 import { openModal, pushModalView } from './modal.js';
 import { renderModalFilters } from './modal-filters.js';
 import { visibleOwners } from './visibility.js';
+import { oppMatchesStrategy, keyMatchesStrategy } from './strategy.js';
 import { findRealtorMatch } from './meetings-review.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
@@ -119,6 +120,7 @@ function getPeriodBounds(year, months0, today, isCompare) {
 function calcLoanClosings(owner, start, end) {
   let count = 0, totalAmount = 0;
   for (const row of (state.oppData || [])) {
+    if (!oppMatchesStrategy(row)) continue;
     const stage = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
     if (stage !== 'closed won') continue;
     const oppOwner = String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim();
@@ -144,6 +146,7 @@ function calcLeadsCreated(owner, start, end) {
   const rows = [];
   const realtorSet = new Set();
   for (const row of (state.leadsData || [])) {
+    if (!oppMatchesStrategy(row)) continue;
     const leadOwner = String(getField(row, 'Lead Owner', 'lead owner', 'Owner', 'owner') || '').trim();
     if (norm(leadOwner) !== nOwner) continue;
     const ref = String(getField(row, 'Referred By', 'referred by') || '').trim();
@@ -162,6 +165,7 @@ function calcLeadsCreated(owner, start, end) {
 function calcPipelineActivity(owner, start, end) {
   let created = 0, stillActive = 0;
   for (const row of (state.oppData || [])) {
+    if (!oppMatchesStrategy(row)) continue;
     const oppOwner = String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim();
     if (norm(oppOwner) !== norm(owner)) continue;
     const cd = parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'));
@@ -352,6 +356,7 @@ function calcMeetingInvites(ownerName, startDate, endDate) {
     const e = (entry && typeof entry === 'object') ? entry : {};
     const owner = (entry && typeof entry === 'object') ? (entry.owner || '') : (entry || '');
     if (norm(owner) !== nOwner) continue;
+    if (!keyMatchesStrategy(key)) continue; // selector de estrategia (display-only)
     const recordType = String(e.opportunity_record_type || 'Realtor').trim();
     if (recordType !== 'Realtor') continue;
     const inviteD = parseDate(e.invite_sent_date);
@@ -366,7 +371,7 @@ function calcMeetingInvites(ownerName, startDate, endDate) {
       entryBranch: String(e.branch || '').trim(),
       entryLo: String(e.loan_officers || '').trim(),
       inviteD, attendD,
-      nppm: e.nppm === true,
+      nppm: e.isNppmContracted === true, // corregido: contratado (NPPM__c + Closed Won), no la casilla sola
       lastReferralD: parseDate(e.last_referral_date),
       leadCount: leads.length,
       firstLeadDate: leadDates[0] || null,
@@ -461,6 +466,7 @@ const _perfModalCache = new Map();
 
 function buildLoanModal(owner, start, end, label) {
   const rows = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed won') return false;
     if (norm(String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim()) !== norm(owner)) return false;
     const d = parseDate(getField(row, 'Disbursement Date', 'disbursement date'));
@@ -551,6 +557,7 @@ function buildOppTable(rows, title, sub) {
 
 function buildPipelineModal(owner, start, end, label) {
   const rows = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (norm(String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim()) !== norm(owner)) return false;
     const cd = parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'));
     return cd && cd >= start && cd <= end;
@@ -906,6 +913,7 @@ export function renderPerformance() {
 
   const hfByRef = new Map();
   for (const row of (state.leadsData || [])) {
+    if (!oppMatchesStrategy(row)) continue;
     const refRaw = String(row[refByField] || '').trim();
     if (!refRaw) continue;
     const key = norm(refRaw);
@@ -1040,6 +1048,7 @@ export function renderPerformance() {
   const openAllRows = [];
   let openPipeCount = 0, openPipeAmt = 0;
   for (const row of (state.oppData || [])) {
+    if (!oppMatchesStrategy(row)) continue;
     if (norm(String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim()) !== norm(owner)) continue;
     const st = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
     if (!st || st === 'closed won' || st === 'closed lost') continue;
@@ -1068,6 +1077,7 @@ export function renderPerformance() {
     let total = 0, volume = 0;
     const reached = { 'Reached Ratified': 0, 'Reached Pre-Approval': 0, 'Reached Pre-Qualification': 0 };
     for (const row of (state.oppData || [])) {
+      if (!oppMatchesStrategy(row)) continue;
       if (norm(String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim()) !== norm(owner)) continue;
       if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed lost') continue;
       const ratifD = parseDate(getField(row, 'Ratified Date', 'ratified date', 'ratified_date'));
@@ -1322,6 +1332,7 @@ export function renderPerformance() {
 
   // ── Opportunities Created: breakdown por stage + modal de realtors ──
   const oppCreatedRows = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (norm(String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim()) !== norm(owner)) return false;
     const cd = parseDate(getField(row, 'Created Date', 'created date', 'Create Date', 'create date'));
     return cd && cd >= start && cd <= end;
@@ -1687,6 +1698,7 @@ export function renderPerformance() {
 
   // ── Closings vs Goal ──
   const closingRows = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed won') return false;
     if (norm(String(getField(row, 'Opportunity Owner', 'opportunity owner') || '').trim()) !== norm(owner)) return false;
     const disbDate = parseDate(getField(row, 'Disbursement Date', 'disbursement date'));

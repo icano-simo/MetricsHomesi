@@ -3,6 +3,7 @@ import { norm, parseDate, fmtDate, getField, initials, normalizeLO } from './uti
 import { openModal, pushModalView } from './modal.js';
 import { renderModalFilters } from './modal-filters.js';
 import { dl } from './export.js';
+import { oppMatchesStrategy } from './strategy.js';
 import { buildHealthBreakdown, openHealthModal, healthChipHtml } from './pipeline.js';
 
 const _healthCacheLoP = new Map();
@@ -74,6 +75,7 @@ export function initLoPipeline() {
   loEl.innerHTML = los.map(lo => '<option value="' + lo + '"' + (prev.includes(lo) ? ' selected' : '') + '>' + lo + '</option>').join('');
 
   const cwOpps = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed won') return false;
     return los.some(lo => matchLo(row, lo));
   });
@@ -92,6 +94,7 @@ export function renderLoPipeline() {
   const allowedLOs = getAllowedLOs();
 
   const openOpps = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     const stage = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
     if (!stage || stage === 'closed won' || stage === 'closed lost') return false;
     const currStatus = String(getField(row, 'Current Status', 'current status', 'current_status') || '').trim().toLowerCase();
@@ -233,6 +236,7 @@ function showLoPipelineStageDetail(lo, stage) {
   const isAll = lo === 'ALL';
   const allowedLOsForAll = isAll ? getAllowedLOs() : null;
   const rows = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (String(getField(row, 'Stage', 'stage') || '—').trim() !== stage) return false;
     if (isAll) {
       const st = String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase();
@@ -358,6 +362,7 @@ export function renderLoCwSection() {
   const allowedLOs = getAllowedLOs();
   const inactiveCutoff = getLoInactiveCutoff();
   const allCW = (state.oppData || []).filter(row => {
+    if (!oppMatchesStrategy(row)) return false;
     if (String(getField(row, 'Stage', 'stage') || '').trim().toLowerCase() !== 'closed won') return false;
     const currStatus = String(getField(row, 'Current Status', 'current status', 'current_status') || '').trim().toLowerCase();
     if (currStatus.includes('archive loan')) return false;

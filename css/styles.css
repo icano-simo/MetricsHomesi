@@ -807,6 +807,13 @@ body{background:#FCFCFA}
 .auth-btn{height:44px;background:#FF3B30;color:white;border:none;border-radius:999px;font-family:'Barlow',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 12px rgba(255,59,48,0.3)}
 .auth-btn:hover{background:#CC2020;transform:translateY(-1px);box-shadow:0 6px 16px rgba(255,59,48,0.4)}
 .auth-btn:disabled{background:#94A3B8;box-shadow:none;transform:none;cursor:not-allowed}
+
+/* Selector de estrategia (Todas / B2B / NPPM) — display-only, global a la sección B2B */
+.strat-bar{display:flex;align-items:center;gap:6px;margin:0 0 14px}
+.strat-label{font-family:'Barlow',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#667799;margin-right:4px}
+.strat-btn{font-family:'Barlow',sans-serif;font-size:11px;font-weight:700;letter-spacing:.3px;padding:5px 14px;border:1px solid #D0DAF0;background:white;color:var(--hs-navy);border-radius:999px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.strat-btn:hover{border-color:#001A40}
+.strat-btn.active{background:#1E3A5F;color:white;border-color:#1E3A5F}
 .auth-footer{font-size:11px;color:#94A3B8;text-align:center;margin-top:20px}
 
 /* Usuario autenticado en el header */

@@ -215,6 +215,15 @@ async function _runLoCalc() {
 
     const cw = cwMap.get(key) || 0, pa = paMap.get(key) || 0, rat = ratMap.get(key) || 0;
 
+    // Estrategia por realtor (display-only), igual que en calc.js: la estrategia
+    // es del realtor (realtor_key), no del LO, así que se lee del mismo mapa.
+    const smeta = state.realtorOwnerMap.get(key);
+    const strategy = (smeta && smeta.strategy) || 'B2B';
+    const nppmTipo = (smeta && smeta.nppmTipo) || null;
+    const referredByNppm = (smeta && smeta.referredByNppm) || null;
+    const isNppmContracted = !!(smeta && smeta.isNppmContracted);
+    const isNppmReferred = !!(smeta && smeta.isNppmReferred);
+
     if (isActive) {
       const c1 = true;
       const c2 = firstDate ? firstDate >= floorDate : false;
@@ -236,10 +245,10 @@ async function _runLoCalc() {
       else if (c1 && c3)        med = 'Farming Lead';
       else                      med = 'Sin medición';
       const curCw = curCwMap.get(key) || 0, curRat = curRatMap.get(key) || 0, curPa = curPaMap.get(key) || 0;
-      state.loActiveResults.push({ key, name: rec.name, cnt, convertedCount: rec.convertedCount, firstDate, penult, lastDate, c1, c2, c3, c4, cw, pa, rat, curCw, curRat, curPa, med, assignedOwner, assignedBranch, ownerSource, confirmed, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
+      state.loActiveResults.push({ key, name: rec.name, cnt, convertedCount: rec.convertedCount, firstDate, penult, lastDate, c1, c2, c3, c4, cw, pa, rat, curCw, curRat, curPa, med, assignedOwner, assignedBranch, ownerSource, confirmed, strategy, nppmTipo, referredByNppm, isNppmContracted, isNppmReferred, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     } else {
       const curCw2 = curCwMap.get(key) || 0, curRat2 = curRatMap.get(key) || 0, curPa2 = curPaMap.get(key) || 0;
-      state.loInactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw, pa, rat, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
+      state.loInactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw, pa, rat, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, strategy, nppmTipo, referredByNppm, isNppmContracted, isNppmReferred, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     }
 
     const existing = state.loMasterMap.get(key);

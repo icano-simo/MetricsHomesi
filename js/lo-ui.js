@@ -2,10 +2,24 @@ import { state } from './state.js';
 import { bus } from './events.js';
 import { fmtDate } from './utils.js';
 import { BADGE } from './config.js';
+import { matchesStrategy } from './strategy.js';
+
+// NPPM badge (contracted/referred, and by which NPPM) — same as the B2B section.
+// English UI copy; referred badge shows the referrer name (referred_by_nppm).
+function stratBadge(r) {
+  if (!r || r.strategy !== 'NPPM') return '';
+  const referred = r.isNppmReferred && !r.isNppmContracted;
+  const by = r.referredByNppm ? String(r.referredByNppm) : '';
+  const label = referred ? ('NPPM &#8592; ' + (by || 'referred')) : 'NPPM';
+  const title = referred
+    ? ('NPPM strategy — referred by ' + (by || 'an NPPM'))
+    : 'NPPM strategy — contracted';
+  return '<span title="' + title + '" style="display:inline-block;margin-left:4px;font-size:8px;font-weight:700;color:#4C1D95;background:#EDE9FE;border-radius:3px;padding:1px 4px;vertical-align:middle;letter-spacing:.3px">' + label + '</span>';
+}
 
 export function renderLoSummary(_w, filtActive, filtInactive, cutoffDate, floorDate, inactFrom) {
-  const src = filtActive || state.loActiveResults;
-  const srcInact = (filtInactive || state.loInactiveResults).filter(r => r.assignedOwner && r.assignedOwner !== '');
+  const src = (filtActive || state.loActiveResults).filter(matchesStrategy);
+  const srcInact = (filtInactive || state.loInactiveResults).filter(r => r.assignedOwner && r.assignedOwner !== '' && matchesStrategy(r));
   const total = src.length, inact = srcInact.length;
   const h = src.filter(r => r.med.startsWith('Hunting')).length;
   const f = src.filter(r => r.med.startsWith('Farming')).length;
@@ -64,10 +78,10 @@ export function renderLoTable() {
   const fo = Array.from(document.getElementById('lo-filter-own').selectedOptions).map(o => o.value).filter(Boolean);
   const fb = Array.from(document.getElementById('lo-filter-branch').selectedOptions).map(o => o.value).filter(Boolean);
   const rows = (state.loCurrentMode === 'active' ? state.loActiveResults : state.loInactiveResults)
-    .filter(r => (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
+    .filter(r => matchesStrategy(r) && (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
 
-  const filtActive = state.loActiveResults.filter(r => (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
-  const filtInactive = state.loInactiveResults.filter(r => (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
+  const filtActive = state.loActiveResults.filter(r => matchesStrategy(r) && (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
+  const filtInactive = state.loInactiveResults.filter(r => matchesStrategy(r) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
   const cutoffStr = document.getElementById('lo-cutoff-date').value;
   const windowDays = parseInt(document.getElementById('lo-window-days').value) || 60;
   const cutoff = new Date(cutoffStr + 'T23:59:59Z');
@@ -141,7 +155,7 @@ export function renderLoTable() {
       const k = encodeURIComponent(r.key);
       return [
         '<tr>',
-        '<td class="sticky-col sticky-col-0 sticky-shadow" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;max-width:140px" title="' + r.name + '">' + r.name + (r.confirmed ? '<span style="color:#1D9E75;font-size:9px;margin-left:3px">&#10003;</span>' : '') + '</td>',
+        '<td class="sticky-col sticky-col-0 sticky-shadow" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;max-width:140px" title="' + r.name + '">' + r.name + (r.confirmed ? '<span style="color:#1D9E75;font-size:9px;margin-left:3px">&#10003;</span>' : '') + stratBadge(r) + '</td>',
         '<td class="sticky-col sticky-col-1"><span class="ot">' + (r.assignedOwner || '&#8211;') + '</span></td>',
         '<td class="sticky-col sticky-col-2"><span class="ot">' + (r.assignedBranch || '&#8211;') + '</span></td>',
         '<td class="sticky-col sticky-col-3 sticky-shadow"><span class="badge ' + (BADGE[r.med] || 'b-sin') + '">' + r.med + '</span></td>',
@@ -178,7 +192,7 @@ export function renderLoTable() {
 
     tb.innerHTML = rows.map(r => [
       '<tr>',
-      '<td style="font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="' + r.name + '">' + r.name + '</td>',
+      '<td style="font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="' + r.name + '">' + r.name + stratBadge(r) + '</td>',
       '<td class="dt">' + fmtDate(r.lastDate) + '</td>',
       '<td style="text-align:center;font-weight:700;color:#B8960C">' + (r.daysSinceLast != null ? r.daysSinceLast + 'd' : '&#8211;') + '</td>',
       '<td style="text-align:center">' + (r.cnt || '&#8211;') + '</td>',

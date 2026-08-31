@@ -1,6 +1,15 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, applyOppsOnlyLeads, firstLeadDate } from './utils.js';
 import { visibleOwners } from './visibility.js';
+import { matchesStrategy } from './strategy.js';
+
+// Estrategia de un realtor por su realtor_key (mismo mapa que calc.js). Para la
+// ventana histórica, que se reconstruye desde leadsData y no desde resultados
+// ya etiquetados. Sin fila => B2B (caso general).
+function stratOfKey(key) {
+  const m = state.realtorOwnerMap.get(key);
+  return { strategy: (m && m.strategy) || 'B2B' };
+}
 
 function getAllowedOwners() {
   // Display-only: se limita a los BDs visibles del usuario (no cambia el cálculo).
@@ -14,6 +23,7 @@ function getAllowedOwners() {
 function calcFromActiveResults(allowedOwners) {
   const result = new Map(allowedOwners.map(o => [o, { hunting: 0, farming: 0 }]));
   for (const r of (state.activeResults || [])) {
+    if (!matchesStrategy(r)) continue;
     const bdData = result.get(r.assignedOwner);
     if (!bdData) continue;
     if (r.med && r.med.startsWith('Hunting')) bdData.hunting++;
@@ -104,6 +114,7 @@ function calcHistoricalWindow(floorDate, cutoffDate, allowedOwners) {
       }
     }
     if (!assignedOwner) continue;
+    if (!matchesStrategy(stratOfKey(key))) continue;
 
     const bdData = result.get(assignedOwner);
     if (!bdData) continue;

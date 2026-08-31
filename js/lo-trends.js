@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { norm, parseDate, fmtDate, getField, normalizeLO, firstLeadDate } from './utils.js';
+import { matchesStrategy, keyMatchesStrategy } from './strategy.js';
 
 function getAllowedLOs() {
   return document.getElementById('lo-list').value
@@ -10,6 +11,7 @@ function getAllowedLOs() {
 function calcLoFromActiveResults(allowedLOs) {
   const result = new Map(allowedLOs.map(lo => [lo, { hunting: 0, farming: 0 }]));
   for (const r of (state.loActiveResults || [])) {
+    if (!matchesStrategy(r)) continue;
     const loData = result.get(r.assignedOwner);
     if (!loData) continue;
     if (r.med && r.med.startsWith('Hunting')) loData.hunting++;
@@ -87,6 +89,7 @@ function calcLoHistoricalWindow(floorDate, cutoffDate, allowedLOs) {
       }
     }
     if (!assignedLO) continue;
+    if (!keyMatchesStrategy(key)) continue;
 
     const loData = result.get(assignedLO);
     if (!loData) continue;

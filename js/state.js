@@ -30,5 +30,8 @@ export const state = {
   visibilityLoaded: false,
   fullAccess: false,
   visibleBdSet: new Set(),
-  visibleBdNames: []
+  visibleBdNames: [],
+  // Strategy selector (DISPLAY-only, like visibility): 'all' | 'b2b' | 'nppm'.
+  // Defaults to 'all' so the totals people see on open don't change.
+  strategyFilter: 'all'
 };

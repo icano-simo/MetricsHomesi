@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { fmtDate } from './utils.js';
 import { sbFetch } from './supabase.js';
+import { matchesStrategy } from './strategy.js';
 
 export function dl(rows, fn) {
   const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
@@ -47,7 +48,7 @@ export function exportCSV() {
   const fo = document.getElementById('filter-own').value;
   const fb = document.getElementById('filter-branch').value;
   const rows = (state.currentMode === 'active' ? state.activeResults : state.inactiveResults)
-    .filter(r => (!fm || r.med === fm) && (!fo || r.assignedOwner === fo) && (!fb || r.assignedBranch === fb));
+    .filter(r => matchesStrategy(r) && (!fm || r.med === fm) && (!fo || r.assignedOwner === fo) && (!fb || r.assignedBranch === fb));
   let h, d;
   if (state.currentMode === 'active') {
     h = ['Realtor', 'Period Leads', 'Converted to Opp.', '1st Lead', '2nd to Last Lead', 'Leads w/ Pre-Approval', 'Leads w/ Ratified', 'Leads Closed Won', 'Curr. Pre-Approval', 'Curr. Ratified', 'Curr. Closed Won', 'Owner', 'Branch', 'Rating', 'Confirmed'];

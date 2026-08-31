@@ -170,6 +170,16 @@ async function _runCalc() {
 
     const cw = cwMap.get(key) || 0, pa = paMap.get(key) || 0, rat = ratMap.get(key) || 0;
 
+    // Estrategia por realtor (display-only): sale de realtor_owner_map_v2
+    // (fuente dim_realtor_strategy), indexada por realtor_key = norm(referred_by).
+    // Sin fila conocida => B2B (caso general). No cambia el cálculo, solo etiqueta.
+    const smeta = state.realtorOwnerMap.get(key);
+    const strategy = (smeta && smeta.strategy) || 'B2B';
+    const nppmTipo = (smeta && smeta.nppmTipo) || null;
+    const referredByNppm = (smeta && smeta.referredByNppm) || null;
+    const isNppmContracted = !!(smeta && smeta.isNppmContracted);
+    const isNppmReferred = !!(smeta && smeta.isNppmReferred);
+
     if (isActive) {
       const c1 = true, c2 = firstDate ? firstDate >= floorDate : false, c3 = firstDate ? firstDate < floorDate : false, c4 = penult ? penult <= reactThreshold : false;
       const c5 = cw > 0, c6 = pa > 0, c7 = rat > 0;
@@ -188,11 +198,11 @@ async function _runCalc() {
       else if (c1 && c3)        med = 'Farming Lead';
       else                      med = 'Sin medición';
       const curCw = curCwMap.get(key) || 0, curRat = curRatMap.get(key) || 0, curPa = curPaMap.get(key) || 0;
-      state.activeResults.push({ key, name: rec.name, cnt, convertedCount: rec.convertedCount, firstDate, penult, lastDate, c1, c2, c3, c4, cw, pa, rat, curCw, curRat, curPa, med, assignedOwner, assignedBranch, ownerSource, confirmed, fromOppsOnly: rec.fromOppsOnly || false, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
+      state.activeResults.push({ key, name: rec.name, cnt, convertedCount: rec.convertedCount, firstDate, penult, lastDate, c1, c2, c3, c4, cw, pa, rat, curCw, curRat, curPa, med, assignedOwner, assignedBranch, ownerSource, confirmed, fromOppsOnly: rec.fromOppsOnly || false, strategy, nppmTipo, referredByNppm, isNppmContracted, isNppmReferred, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     } else {
       const curCw2 = curCwMap.get(key) || 0, curRat2 = curRatMap.get(key) || 0, curPa2 = curPaMap.get(key) || 0;
       const cwI = cwMapInact.get(key) || 0, paI = paMapInact.get(key) || 0, ratI = ratMapInact.get(key) || 0;
-      state.inactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw: cwI, pa: paI, rat: ratI, cwAll: cwAllMap.get(key) || 0, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, fromOppsOnly: rec.fromOppsOnly || false, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
+      state.inactiveResults.push({ key, name: rec.name, cnt: rec.recentDates.length || rec.allDates.length, convertedCount: rec.convertedCount, firstDate, penult, lastDate, cw: cwI, pa: paI, rat: ratI, cwAll: cwAllMap.get(key) || 0, curCw: curCw2, curRat: curRat2, curPa: curPa2, med: 'Inactive', assignedOwner, assignedBranch, ownerSource, confirmed, fromOppsOnly: rec.fromOppsOnly || false, strategy, nppmTipo, referredByNppm, isNppmContracted, isNppmReferred, daysSinceLast: lastDate ? Math.floor((cutoff - lastDate) / 86400000) : null, leadRows: leadRowsMap.get(key) || [], oppRows: oppRowsMap.get(key) || [] });
     }
     const existing = state.masterMap.get(key);
     if (!existing || existing.source === 'auto') {

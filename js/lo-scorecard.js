@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { initials, fmtDate } from './utils.js';
 import { BADGE } from './config.js';
 import { openModal } from './modal.js';
+import { matchesStrategy } from './strategy.js';
 
 function getAllowedLOs() {
   return document.getElementById('lo-list').value
@@ -9,7 +10,7 @@ function getAllowedLOs() {
 }
 
 export function showLoScorecardDetail(lo, med) {
-  const rows = state.loActiveResults.filter(r => r.assignedOwner === lo && r.med === med);
+  const rows = state.loActiveResults.filter(r => r.assignedOwner === lo && r.med === med && matchesStrategy(r));
   if (!rows.length) return;
   const cutoffStr = document.getElementById('lo-cutoff-date').value;
   const windowDays = parseInt(document.getElementById('lo-window-days').value) || 60;
@@ -67,7 +68,7 @@ export function renderLoScorecard(los) {
   const filtLos = scOwns.length ? los.filter(o => scOwns.includes(o)) : los;
 
   document.getElementById('lo-scorecard-grid').innerHTML = filtLos.map(lo => {
-    const mine = state.loActiveResults.filter(r => r.assignedOwner === lo);
+    const mine = state.loActiveResults.filter(r => r.assignedOwner === lo && matchesStrategy(r));
     if (!mine.length) return '';
     const rows = cats.filter(c => !scMeds.length || scMeds.includes(c)).map(c => {
       const n = mine.filter(r => r.med === c).length;
@@ -90,9 +91,9 @@ export function renderLoScorecard(los) {
 export function renderLoRankings(los) {
   const data = los.map(lo => ({
     lo,
-    huntingCount: state.loActiveResults.filter(r => r.assignedOwner === lo && r.med.startsWith('Hunting')).length,
-    farmingCount: state.loActiveResults.filter(r => r.assignedOwner === lo && r.med.startsWith('Farming')).length,
-    total: state.loActiveResults.filter(r => r.assignedOwner === lo).length
+    huntingCount: state.loActiveResults.filter(r => r.assignedOwner === lo && matchesStrategy(r) && r.med.startsWith('Hunting')).length,
+    farmingCount: state.loActiveResults.filter(r => r.assignedOwner === lo && matchesStrategy(r) && r.med.startsWith('Farming')).length,
+    total: state.loActiveResults.filter(r => r.assignedOwner === lo && matchesStrategy(r)).length
   })).filter(d => d.total > 0);
 
   if (!data.length) {
