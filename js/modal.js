@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { fmtDate, parseDate, getField, norm } from './utils.js';
 import { dl } from './export.js';
+import { matchesStrategy } from './strategy.js';
 
 // ── Navegación interna del modal (drill-down con "← Back") ──
 const _modalStack = [];
@@ -82,7 +83,7 @@ export function closeModal(e) {
 }
 
 export function showScorecardDetail(owner, med) {
-  const rows = state.activeResults.filter(r => r.assignedOwner === owner && r.med === med);
+  const rows = state.activeResults.filter(r => r.assignedOwner === owner && r.med === med && matchesStrategy(r));
   if (!rows.length) return;
 
   const cutoffStr = document.getElementById('cutoff-date').value;

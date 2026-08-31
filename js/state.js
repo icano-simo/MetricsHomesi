@@ -30,5 +30,8 @@ export const state = {
   visibilityLoaded: false,
   fullAccess: false,
   visibleBdSet: new Set(),
-  visibleBdNames: []
+  visibleBdNames: [],
+  // Selector de estrategia (solo DISPLAY, como visibilidad): 'all' | 'b2b' | 'nppm'.
+  // Por defecto 'all' para no cambiar los totales que la gente ve al abrir.
+  strategyFilter: 'all'
 };

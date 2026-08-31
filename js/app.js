@@ -23,6 +23,21 @@ import { initMeetingsReview, renderMeetingsReview, clearMrFilters, markMeetingPa
 import { signIn, signOut, getSession, getCurrentUser, mustChangePassword, updatePassword, hasAppAccess, refreshSession, supabaseAuth } from './auth.js';
 import { loadVisibility } from './visibility.js';
 
+// Selector de estrategia (Todas/B2B/NPPM) — display-only. Re-renderiza las vistas
+// B2B que ya son strategy-aware. (Pipeline, Performance y LO se suman en la
+// próxima tanda; hasta entonces ignoran el selector.)
+function setStrategy(val) {
+  if (val !== 'all' && val !== 'b2b' && val !== 'nppm') return;
+  state.strategyFilter = val;
+  document.querySelectorAll('.strat-btn').forEach(b =>
+    b.classList.toggle('active', b.getAttribute('data-strat') === val));
+  if (state.activeResults.length || state.inactiveResults.length) {
+    try { renderTable(); } catch (e) { console.warn('[strategy] renderTable', e.message); }
+    try { refreshScorecard(); } catch (e) { console.warn('[strategy] scorecard', e.message); }
+    try { renderTrends(); } catch (e) { console.warn('[strategy] trends', e.message); }
+  }
+}
+
 let _zoomLoading = false;
 
 // card-id suffix for each file type (used for progress bars and status labels)
@@ -395,7 +410,12 @@ async function initApp() {
             const rows = await sbFetch('realtor_owner_map_v2?select=*&limit=' + PAGE + '&offset=' + offset + '&order=realtor_key.asc');
             if (!rows || !rows.length) break;
             for (const r of rows) {
-              if (r.realtor_key && r.owner) state.realtorOwnerMap.set(r.realtor_key, { owner: r.owner, name: r.realtor_name, branch: r.branch, loan_officers: r.loan_officers, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date, opportunity_record_type: r.opportunity_record_type, stage: r.stage, created_date: r.created_date });
+              // Antes se exigía owner, pero las filas "dim-only" (grafías que solo
+              // viven en fct_leads/fct_opportunities, p. ej. 'daniella ottone')
+              // llegan sin owner y traen la strategy correcta. Sin ellas, sus
+              // leads/opps no se etiquetarían NPPM. Se guardan por realtor_key; los
+              // consumidores que necesitan owner (chip de Meetings) toleran null.
+              if (r.realtor_key) state.realtorOwnerMap.set(r.realtor_key, { owner: r.owner, name: r.realtor_name, branch: r.branch, loan_officers: r.loan_officers, meeting_attended_date: r.meeting_attended_date, invite_sent_date: r.invite_sent_date, nppm: r.nppm, last_referral_date: r.last_referral_date, opportunity_record_type: r.opportunity_record_type, stage: r.stage, created_date: r.created_date, strategy: r.strategy, isNppmContracted: r.is_nppm_contracted, isNppmReferred: r.is_nppm_referred, nppmTipo: r.nppm_tipo, referredByNppm: r.referred_by_nppm });
             }
             if (rows.length < PAGE) break;
             offset += PAGE;
@@ -468,7 +488,7 @@ function toggleCalcParams() {
 // Expose functions needed by inline HTML onclick handlers
 Object.assign(window, {
   runCalc, openSettings, closeSettings, onModeSelect, renderTable, showTab, srt,
-  toggleCalcParams,
+  toggleCalcParams, setStrategy,
   clearScorecardFilters, refreshScorecard, renderRankings,
   renderAssignCards, saveAllAssignments, clearAssignFilters, confirmAssign, unconfirm, updateAssign,
   showAssignView, renderUnassigned, saveUnassigned, applyUaSuggestion,

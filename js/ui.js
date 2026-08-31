@@ -2,17 +2,29 @@ import { state } from './state.js';
 import { fmtDate } from './utils.js';
 import { BADGE } from './config.js';
 import { visibleOwners, isOwnerVisible } from './visibility.js';
+import { matchesStrategy } from './strategy.js';
 
 // Distintivo para realtors "direct-to-opportunity": tienen oportunidad pero
 // ningún lead real. Sus leads/conversiones son sintéticos (1 por oportunidad),
 // así que NO deben verse idénticos a un lead real en el reporte.
 const OPP_BADGE = '<span title="Direct-to-opportunity: opportunities but no leads. Each opportunity counts as 1 lead and 1 conversion." style="display:inline-block;margin-left:4px;font-size:8px;font-weight:700;color:#8A5A00;background:#FFE9B3;border-radius:3px;padding:1px 4px;vertical-align:middle;letter-spacing:.3px">OPP</span>';
 
+// Distintivo NPPM: contratado vs referido (con por quién). Un realtor NPPM cuenta
+// del lado NPPM (sale del B2B de su BD); esto solo lo etiqueta en pantalla.
+function stratBadge(r) {
+  if (!r || r.strategy !== 'NPPM') return '';
+  const referred = r.isNppmReferred && !r.isNppmContracted;
+  const label = referred ? 'NPPM · ref' : 'NPPM';
+  const by = referred && r.referredByNppm ? (' — referido por ' + r.referredByNppm) : (referred ? ' — referido por un NPPM' : ' — contratado');
+  const title = 'Estrategia NPPM' + by;
+  return '<span title="' + title + '" style="display:inline-block;margin-left:4px;font-size:8px;font-weight:700;color:#4C1D95;background:#EDE9FE;border-radius:3px;padding:1px 4px;vertical-align:middle;letter-spacing:.3px">' + label + '</span>';
+}
+
 export function renderSummary(_w, filtActive, filtInactive, cutoffDate, floorDate, inactFrom) {
   // Display-only: los conteos se limitan a los BDs visibles del usuario
   // (isOwnerVisible = true para acceso total → sin cambios; el cálculo no se toca).
-  const src = (filtActive || state.activeResults).filter(r => isOwnerVisible(r.assignedOwner));
-  const srcInact = (filtInactive || state.inactiveResults).filter(r => r.assignedOwner && r.assignedOwner !== '' && isOwnerVisible(r.assignedOwner));
+  const src = (filtActive || state.activeResults).filter(r => isOwnerVisible(r.assignedOwner) && matchesStrategy(r));
+  const srcInact = (filtInactive || state.inactiveResults).filter(r => r.assignedOwner && r.assignedOwner !== '' && isOwnerVisible(r.assignedOwner) && matchesStrategy(r));
   const total = src.length, inact = srcInact.length;
   const h = src.filter(r => r.med.startsWith('Hunting')).length;
   const f = src.filter(r => r.med.startsWith('Farming')).length;
@@ -73,10 +85,10 @@ export function renderTable() {
   const fo = Array.from(document.getElementById('filter-own').selectedOptions).map(o => o.value).filter(Boolean);
   const fb = Array.from(document.getElementById('filter-branch').selectedOptions).map(o => o.value).filter(Boolean);
   const rows = (state.currentMode === 'active' ? state.activeResults : state.inactiveResults)
-    .filter(r => isOwnerVisible(r.assignedOwner) && (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
+    .filter(r => isOwnerVisible(r.assignedOwner) && matchesStrategy(r) && (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
 
-  const filtActive = state.activeResults.filter(r => isOwnerVisible(r.assignedOwner) && (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
-  const filtInactive = state.inactiveResults.filter(r => isOwnerVisible(r.assignedOwner) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
+  const filtActive = state.activeResults.filter(r => isOwnerVisible(r.assignedOwner) && matchesStrategy(r) && (!fm.length || fm.includes(r.med)) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
+  const filtInactive = state.inactiveResults.filter(r => isOwnerVisible(r.assignedOwner) && matchesStrategy(r) && (!fo.length || fo.includes(r.assignedOwner)) && (!fb.length || fb.includes(r.assignedBranch)));
   const cutoffStr = document.getElementById('cutoff-date').value;
   const windowDays = parseInt(document.getElementById('window-days').value) || 60;
   const cutoff = new Date(cutoffStr + 'T23:59:59Z');
@@ -155,7 +167,7 @@ export function renderTable() {
       const k = encodeURIComponent(r.key);
       return [
         '<tr>',
-        '<td class="sticky-col sticky-col-0 sticky-shadow" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;max-width:140px" title="' + r.name + (r.fromOppsOnly ? ' — direct-to-opportunity (no leads)' : '') + '">' + r.name + (r.confirmed ? '<span style="color:#1D9E75;font-size:9px;margin-left:3px">&#10003;</span>' : '') + (r.fromOppsOnly ? OPP_BADGE : '') + '</td>',
+        '<td class="sticky-col sticky-col-0 sticky-shadow" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;max-width:140px" title="' + r.name + (r.fromOppsOnly ? ' — direct-to-opportunity (no leads)' : '') + '">' + r.name + (r.confirmed ? '<span style="color:#1D9E75;font-size:9px;margin-left:3px">&#10003;</span>' : '') + (r.fromOppsOnly ? OPP_BADGE : '') + stratBadge(r) + '</td>',
         '<td class="sticky-col sticky-col-1"><span class="ot">' + (r.assignedOwner || '&#8211;') + '</span></td>',
         '<td class="sticky-col sticky-col-2"><span class="ot">' + (r.assignedBranch || '&#8211;') + '</span></td>',
         '<td class="sticky-col sticky-col-3 sticky-shadow"><span class="badge ' + (BADGE[r.med] || 'b-sin') + '">' + r.med + '</span></td>',
@@ -195,7 +207,7 @@ export function renderTable() {
       const k = encodeURIComponent(r.key);
       return [
       '<tr>',
-      '<td style="font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="' + r.name + (r.fromOppsOnly ? ' — direct-to-opportunity (no leads)' : '') + '">' + r.name + (r.fromOppsOnly ? OPP_BADGE : '') + '</td>',
+      '<td style="font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="' + r.name + (r.fromOppsOnly ? ' — direct-to-opportunity (no leads)' : '') + '">' + r.name + (r.fromOppsOnly ? OPP_BADGE : '') + stratBadge(r) + '</td>',
       '<td class="dt">' + fmtDate(r.lastDate) + '</td>',
       '<td style="text-align:center;font-weight:700;color:#B8960C">' + (r.daysSinceLast != null ? r.daysSinceLast + 'd' : '&#8211;') + '</td>',
       '<td style="text-align:center">' + (r.cnt || '&#8211;') + '</td>',

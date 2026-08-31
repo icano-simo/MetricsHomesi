@@ -170,6 +170,13 @@
         <div id="results" class="hidden">
           <div class="mcards" id="summary-cards"></div>
 
+          <div class="strat-bar">
+            <span class="strat-label">Estrategia</span>
+            <button class="strat-btn active" data-strat="all" onclick="setStrategy('all')">Todas</button>
+            <button class="strat-btn" data-strat="b2b" onclick="setStrategy('b2b')">B2B</button>
+            <button class="strat-btn" data-strat="nppm" onclick="setStrategy('nppm')">NPPM</button>
+          </div>
+
           <div class="tabs">
             <button class="tab active" onclick="showTab('med')"><i class="ti ti-chart-bar"></i> Ratings</button>
             <button class="tab" onclick="showTab('sc')"><i class="ti ti-trophy"></i> Scorecard B2B</button>

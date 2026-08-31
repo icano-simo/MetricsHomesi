@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { initials } from './utils.js';
 import { BADGE } from './config.js';
 import { visibleOwners, isOwnerVisible } from './visibility.js';
+import { matchesStrategy } from './strategy.js';
 
 export function renderScorecard(owners) {
   // Display-only: limita a los BDs visibles del usuario (no cambia el cálculo).
@@ -26,7 +27,7 @@ export function renderScorecard(owners) {
   const filtOwners = (scOwns.length ? owners.filter(o => scOwns.includes(o)) : owners).filter(o => isOwnerVisible(o));
 
   document.getElementById('scorecard-grid').innerHTML = filtOwners.map(owner => {
-    const mine = state.activeResults.filter(r => r.assignedOwner === owner);
+    const mine = state.activeResults.filter(r => r.assignedOwner === owner && matchesStrategy(r));
     if (!mine.length) return '';
     const rows = cats
       .filter(c => !scMeds.length || scMeds.includes(c))
@@ -51,9 +52,9 @@ export function renderScorecard(owners) {
 export function renderRankings(owners) {
   const data = owners.map(owner => ({
     owner,
-    huntingCount: state.activeResults.filter(r => r.assignedOwner === owner && r.med.startsWith('Hunting')).length,
-    farmingCount: state.activeResults.filter(r => r.assignedOwner === owner && r.med.startsWith('Farming')).length,
-    total: state.activeResults.filter(r => r.assignedOwner === owner).length
+    huntingCount: state.activeResults.filter(r => r.assignedOwner === owner && matchesStrategy(r) && r.med.startsWith('Hunting')).length,
+    farmingCount: state.activeResults.filter(r => r.assignedOwner === owner && matchesStrategy(r) && r.med.startsWith('Farming')).length,
+    total: state.activeResults.filter(r => r.assignedOwner === owner && matchesStrategy(r)).length
   })).filter(d => d.total > 0);
 
   if (!data.length) {
