@@ -17,9 +17,17 @@ import { state } from './state.js';
 import { getAccessToken } from './auth.js';
 
 export async function sbFetch(path, opts = {}) {
-  // CAMBIO 1: leer con la sesión del usuario (JWT), no con la anon key, para
-  // que RLS pueda filtrar por auth.jwt(). Cae a la anon key si no hay sesión.
-  const token = (await getAccessToken()) || SB_KEY;
+  // Se lee con el JWT del usuario (para que RLS filtre por auth.jwt()).
+  // getAccessToken() espera a que la sesión esté hidratada. NO se cae a la anon
+  // key: hacerlo disfrazaba un problema de timing de sesión como un 42501 de
+  // permisos y dejaba la app en una vista parcial en silencio. Si de verdad no
+  // hay sesión, fallamos con un mensaje claro. El header `apikey` sigue siendo la
+  // anon key porque es lo que PostgREST espera ahí, aunque el Authorization sea
+  // el JWT del usuario.
+  const token = await getAccessToken();
+  if (!token) {
+    throw new Error('No active session — please sign in again.');
+  }
   const headers = {
     'apikey': SB_KEY,
     'Authorization': 'Bearer ' + token,
